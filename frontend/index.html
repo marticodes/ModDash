@@ -121,6 +121,12 @@
         color: #4b5563;
       }
 
+      .results-panels {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 16px;
+      }
+
       .panel {
         background: #fff;
         border-radius: 18px;
@@ -136,8 +142,77 @@
         color: #9ca3af;
       }
 
+      .dataset-table {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        padding: 16px;
+        border-radius: 12px;
+        background: rgba(99, 102, 241, 0.05);
+      }
+
+      .dataset-table h3 {
+        margin: 0;
+        font-size: 1.05rem;
+        color: #3730a3;
+      }
+
+      .dataset-table .columns {
+        margin: 0;
+        display: grid;
+        gap: 4px;
+      }
+
+      .dataset-table .columns dt {
+        font-weight: 600;
+      }
+
+      .dataset-table .columns dd {
+        margin: 0 0 8px 0;
+        color: #4b5563;
+      }
+
+      .sample-rows {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.9rem;
+      }
+
+      .sample-rows th,
+      .sample-rows td {
+        border: 1px solid #e5e7eb;
+        padding: 6px 8px;
+        text-align: left;
+      }
+
+      .sample-rows th {
+        background: #eef2ff;
+      }
+
+      .fallback-note {
+        margin: 12px 0 0;
+        padding: 12px;
+        border-radius: 12px;
+        background: rgba(217, 119, 6, 0.12);
+        color: #b45309;
+        font-weight: 600;
+      }
+
+      button:disabled {
+        opacity: 0.7;
+        cursor: progress;
+      }
+
       @media (max-width: 960px) {
         .layout {
+          grid-template-columns: 1fr;
+        }
+
+        .results-header {
+          grid-template-columns: 1fr;
+        }
+
+        .results-panels {
           grid-template-columns: 1fr;
         }
       }
@@ -165,7 +240,7 @@
             <p class="hint">Use this space to test the rule against a specific message.</p>
           </div>
 
-          <button type="button">Generate</button>
+          <button id="generate" type="button">Generate</button>
         </section>
 
         <section class="results">
@@ -173,10 +248,22 @@
             <span>Result</span>
             <span>Dataset</span>
           </div>
-          <div class="panel" data-placeholder="Generated results will appear here..."></div>
+          <div class="results-panels">
+            <div
+              id="result-panel"
+              class="panel"
+              data-placeholder="Generated results will appear here..."
+            ></div>
+            <div
+              id="dataset-panel"
+              class="panel"
+              data-placeholder="Generated datasets will appear here..."
+            ></div>
+          </div>
         </section>
       </main>
     </div>
+    <script type="module" src="/src/main.js"></script>
   </body>
 </html>
 
