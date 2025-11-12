@@ -1,8 +1,11 @@
 const express = require('express');
 const cors = require('cors');
+const OpenAI = require('openai');
 
 const app = express();
 const PORT = Number(process.env.PORT || 3001);
+const openaiApiKey = process.env.OPENAI_API_KEY;
+const openaiClient = openaiApiKey ? new OpenAI({ apiKey: openaiApiKey }) : null;
 
 app.use(cors({ origin: true }));
 app.use(express.json({ limit: '1mb' }));
@@ -116,14 +119,46 @@ app.post('/generate', async (req, res) => {
   const trimmedRule = rule.trim();
   const prompt = buildPrompt(trimmedRule, typeof example === 'string' ? example.trim() : '');
 
-  // Placeholder for future GPT integration. The deterministic fallback keeps the UI functional.
-  const payload = createFallbackTables(trimmedRule, typeof example === 'string' ? example.trim() : '');
+  if (!openaiClient) {
+    const payload = createFallbackTables(trimmedRule, typeof example === 'string' ? example.trim() : '');
+    return res.json({
+      prompt,
+      ...payload,
+      usedFallback: true,
+      fallbackReason: 'OPENAI_API_KEY not set on the server.',
+    });
+  }
 
-  res.json({
-    prompt,
-    ...payload,
-    usedFallback: true,
-  });
+  try {
+    const response = await openaiClient.responses.create({
+      model: 'gpt-4.1-mini',
+      input: prompt,
+      temperature: 0.2,
+    });
+
+    const output = typeof response.output_text === 'string' ? response.output_text.trim() : '';
+    const parsed = output ? JSON.parse(output) : null;
+
+    if (!parsed || typeof parsed !== 'object' || !parsed.tables) {
+      throw new Error('Response missing expected JSON shape');
+    }
+
+    res.json({
+      prompt,
+      ...parsed,
+      usedFallback: false,
+    });
+  } catch (error) {
+    console.error('OpenAI call failed:', error);
+    const payload = createFallbackTables(trimmedRule, typeof example === 'string' ? example.trim() : '');
+    res.json({
+      prompt,
+      ...payload,
+      usedFallback: true,
+      fallbackReason: 'OpenAI request failed; served deterministic content.',
+      openAiError: error.message,
+    });
+  }
 });
 
 app.listen(PORT, () => {
