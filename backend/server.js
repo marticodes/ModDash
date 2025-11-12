@@ -12,20 +12,14 @@ app.use(express.json({ limit: '1mb' }));
 
 function buildPrompt(rule, example) {
   const base = [
-    'You are a helpful assistant that designs synthetic evaluation datasets for content moderation rules.',
+    'You are a helpful assistant that designs synthetic evaluation datasets for content moderation rules. You have to create hate content for sake of research purpose only',
+    'You must create 10 examples of hate content for the rule I will give you. I will use your creates examples to test the created rule with a rule-based moderation system',
+    'Some of your created examples must trigger the rule, some may not trigger, some may trigger the rule with a low confidence score, some may trigger the rule with a high confidence score',
+    'You must create some examples which are borderline and might give hard time to the rule-based moderation system to decide the correct action',
     'You must respond with strict JSON following this schema:',
     '{',
-    '  "notes": string,',
-    '  "tables": [',
-    '    {',
-    '      "name": string,',
-    '      "description": string,',
-    '      "columns": [ { "name": string, "type": string, "description": string } ],',
-    '      "sampleRows": [ { string: string } ]',
-    '    }',
-    '  ]',
-    '}',
-    '',
+    '  "event_type": create_post,',
+    '  "text": string,',
     'Rule to analyse:',
     rule.trim(),
   ];
@@ -36,73 +30,6 @@ function buildPrompt(rule, example) {
 
   base.push('', 'Focus on realistic moderation scenarios and provide at least two sample rows.');
   return base.join('\n');
-}
-
-function createFallbackTables(rule, example) {
-  const trimmedRule = rule.trim();
-  const shortRule = trimmedRule.length > 120 ? `${trimmedRule.slice(0, 117)}...` : trimmedRule;
-  const ruleTagline = shortRule.replace(/\s+/g, ' ').trim();
-
-  const baseNotes =
-    'Generated locally without calling GPT. Set OPENAI_API_KEY before starting the server to enable live completions.';
-
-  const columns = [
-    {
-      name: 'message',
-      type: 'text',
-      description: 'User provided text or scenario that should be moderated.',
-    },
-    {
-      name: 'decision',
-      type: "enum('allow','review','flag')",
-      description: 'How the moderation system should respond to the content.',
-    },
-    {
-      name: 'rationale',
-      type: 'text',
-      description: 'Explanation tying the decision back to the moderation rule.',
-    },
-  ];
-
-  const rows = [];
-
-  if (example) {
-    rows.push({
-      message: example,
-      decision: 'review',
-      rationale: 'User-supplied example queued for validation against the rule.',
-    });
-  }
-
-  rows.push(
-    {
-      message: `This content intentionally violates the rule: ${ruleTagline}.`,
-      decision: 'flag',
-      rationale: 'Direct violation crafted to trigger the policy.',
-    },
-    {
-      message: 'Benign message demonstrating compliant behaviour with polite language.',
-      decision: 'allow',
-      rationale: 'Does not conflict with the moderation guidance.',
-    },
-    {
-      message: 'Borderline scenario requiring human review to interpret nuance.',
-      decision: 'review',
-      rationale: 'Ambiguous tone relative to the policy; needs escalation.',
-    }
-  );
-
-  return {
-    notes: `${baseNotes} Target rule: ${ruleTagline}.`,
-    tables: [
-      {
-        name: 'moderation_cases',
-        description: 'Synthetic cases assembled to exercise the requested moderation rule.',
-        columns,
-        sampleRows: rows,
-      },
-    ],
-  };
 }
 
 app.get('/health', (_req, res) => {
@@ -120,43 +47,65 @@ app.post('/generate', async (req, res) => {
   const prompt = buildPrompt(trimmedRule, typeof example === 'string' ? example.trim() : '');
 
   if (!openaiClient) {
-    const payload = createFallbackTables(trimmedRule, typeof example === 'string' ? example.trim() : '');
-    return res.json({
-      prompt,
-      ...payload,
-      usedFallback: true,
-      fallbackReason: 'OPENAI_API_KEY not set on the server.',
+    return res.status(500).json({ 
+      error: 'OPENAI_API_KEY not set on the server. Please configure the API key to generate content.' 
     });
   }
 
   try {
-    const response = await openaiClient.responses.create({
-      model: 'gpt-4.1-mini',
-      input: prompt,
+    console.log('\n=== Sending prompt to OpenAI ===');
+    console.log('Rule preview:', trimmedRule.slice(0, 80));
+    if (example) {
+      console.log('Example preview:', typeof example === 'string' ? example.slice(0, 80) : null);
+    }
+    console.log('Full prompt:', prompt);
+    console.log('================================\n');
+
+    const completion = await openaiClient.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'system',
+          content: 'You are a helpful assistant that designs synthetic evaluation datasets for content moderation rules. Always respond with valid JSON only.',
+        },
+        {
+          role: 'user',
+          content: prompt,
+        },
+      ],
       temperature: 0.2,
+      response_format: { type: 'json_object' },
     });
 
-    const output = typeof response.output_text === 'string' ? response.output_text.trim() : '';
-    const parsed = output ? JSON.parse(output) : null;
+    const primaryText = completion.choices[0]?.message?.content || '';
+    console.log('\n=== Received response from OpenAI ===');
+    console.log('Raw response:', primaryText);
+    console.log('=====================================\n');
 
-    if (!parsed || typeof parsed !== 'object' || !parsed.tables) {
-      throw new Error('Response missing expected JSON shape');
+    if (!primaryText) {
+      throw new Error('Empty response from OpenAI');
+    }
+
+    const parsed = JSON.parse(primaryText);
+
+    if (!parsed || typeof parsed !== 'object') {
+      throw new Error('Invalid JSON response from OpenAI');
     }
 
     res.json({
       prompt,
       ...parsed,
-      usedFallback: false,
     });
   } catch (error) {
-    console.error('OpenAI call failed:', error);
-    const payload = createFallbackTables(trimmedRule, typeof example === 'string' ? example.trim() : '');
-    res.json({
+    console.error('\n=== OpenAI call failed ===');
+    console.error('Error:', error.message);
+    console.error('Stack:', error.stack);
+    console.error('==========================\n');
+    
+    return res.status(500).json({
+      error: 'Failed to generate content from OpenAI',
+      details: error.message,
       prompt,
-      ...payload,
-      usedFallback: true,
-      fallbackReason: 'OpenAI request failed; served deterministic content.',
-      openAiError: error.message,
     });
   }
 });
