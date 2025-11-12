@@ -366,6 +366,7 @@
       }
 
       async function handleGenerate() {
+        console.log('Generate button clicked');
         const rule = ruleField.value.trim();
         const example = exampleField.value.trim();
 
@@ -373,6 +374,10 @@
           alert("Please enter a rule before generating a dataset.");
           return;
         }
+
+        console.log('Sending request to:', `${API_BASE}/generate`);
+        console.log('Rule:', rule);
+        console.log('Example:', example || '(none)');
 
         generateButton.disabled = true;
         generateButton.textContent = "Generating...";
@@ -388,41 +393,116 @@
           });
 
           if (!response.ok) {
-            const message = await response.text();
-            throw new Error(message || `Request failed with status ${response.status}`);
+            let errorMessage = `Request failed with status ${response.status}`;
+            try {
+              const errorData = await response.json();
+              errorMessage = errorData.error || errorData.details || errorMessage;
+              if (errorData.details) {
+                errorMessage += `: ${errorData.details}`;
+              }
+            } catch (e) {
+              const text = await response.text();
+              if (text) {
+                errorMessage = text;
+              }
+            }
+            throw new Error(errorMessage);
           }
 
           const payload = await response.json();
+          console.log('Received payload:', payload);
 
           const summaryNodes = [];
-          if (payload.notes) {
-            summaryNodes.push(createParagraph(payload.notes));
-          }
-
+          
           if (payload.prompt) {
             const promptLabel = document.createElement("h3");
             promptLabel.textContent = "Prompt sent to GPT";
             summaryNodes.push(promptLabel, createPreformatted(payload.prompt));
           }
 
-          if (payload.usedFallback) {
-            const warning = document.createElement("p");
-            warning.className = "fallback-note";
-            warning.textContent = "Fallback dataset used (no live GPT response).";
-            summaryNodes.push(warning);
+          // Handle new format with event_type and text
+          if (payload.event_type || payload.text) {
+            const dataLabel = document.createElement("h3");
+            dataLabel.textContent = "Generated Content";
+            summaryNodes.push(dataLabel);
+            
+            if (payload.event_type) {
+              summaryNodes.push(createParagraph(`Event Type: ${payload.event_type}`));
+            }
+            
+            if (payload.text) {
+              summaryNodes.push(createPreformatted(payload.text));
+            }
+            
+            // If it's an array of examples
+            if (Array.isArray(payload.examples)) {
+              const examplesLabel = document.createElement("h3");
+              examplesLabel.textContent = "Examples";
+              summaryNodes.push(examplesLabel);
+              payload.examples.forEach((example, idx) => {
+                const exampleDiv = document.createElement("div");
+                exampleDiv.style.marginBottom = "16px";
+                exampleDiv.style.padding = "12px";
+                exampleDiv.style.backgroundColor = "#f3f4f6";
+                exampleDiv.style.borderRadius = "8px";
+                const exampleTitle = document.createElement("strong");
+                exampleTitle.textContent = `Example ${idx + 1}:`;
+                exampleDiv.appendChild(exampleTitle);
+                if (example.event_type) {
+                  exampleDiv.appendChild(createParagraph(`Event Type: ${example.event_type}`));
+                }
+                if (example.text) {
+                  exampleDiv.appendChild(createPreformatted(example.text));
+                }
+                summaryNodes.push(exampleDiv);
+              });
+            }
           }
-
-          setPanelContent(resultPanel, summaryNodes);
-
+          
+          // Handle old format with tables (for backward compatibility)
           if (Array.isArray(payload.tables) && payload.tables.length) {
             const tableNodes = payload.tables.map(createTableElement);
             setPanelContent(datasetPanel, tableNodes);
+          } else if (payload.text || payload.examples) {
+            // Display the generated content in the dataset panel
+            const contentDiv = document.createElement("div");
+            if (payload.text) {
+              contentDiv.appendChild(createPreformatted(payload.text));
+            }
+            if (Array.isArray(payload.examples)) {
+              payload.examples.forEach((example, idx) => {
+                const exampleDiv = document.createElement("div");
+                exampleDiv.style.marginBottom = "16px";
+                exampleDiv.style.padding = "12px";
+                exampleDiv.style.backgroundColor = "#f3f4f6";
+                exampleDiv.style.borderRadius = "8px";
+                const exampleTitle = document.createElement("strong");
+                exampleTitle.textContent = `Example ${idx + 1}:`;
+                exampleDiv.appendChild(exampleTitle);
+                if (example.text) {
+                  exampleDiv.appendChild(createPreformatted(example.text));
+                }
+                contentDiv.appendChild(exampleDiv);
+              });
+            }
+            setPanelContent(datasetPanel, contentDiv);
           } else {
-            setPanelPlaceholder(datasetPanel, "No dataset information was returned.");
+            // Display raw JSON if structure is unknown
+            setPanelContent(datasetPanel, createPreformatted(JSON.stringify(payload, null, 2)));
           }
+
+          if (summaryNodes.length === 0) {
+            summaryNodes.push(createParagraph("Content generated successfully."));
+          }
+          
+          setPanelContent(resultPanel, summaryNodes);
         } catch (error) {
-          console.error(error);
-          setPanelContent(resultPanel, createParagraph("Something went wrong while generating the dataset."));
+          console.error('Error generating content:', error);
+          const errorMsg = error.message || "Something went wrong while generating the dataset.";
+          setPanelContent(resultPanel, [
+            createParagraph("Error: " + errorMsg),
+            createParagraph("Check the browser console and server logs for more details.")
+          ]);
           setPanelPlaceholder(datasetPanel, "Unable to generate dataset.");
         } finally {
           generateButton.disabled = false;

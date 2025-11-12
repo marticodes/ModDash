@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const OpenAI = require('openai');
@@ -16,12 +17,24 @@ function buildPrompt(rule, example) {
     'You must create 10 examples of hate content for the rule I will give you. I will use your creates examples to test the created rule with a rule-based moderation system',
     'Some of your created examples must trigger the rule, some may not trigger, some may trigger the rule with a low confidence score, some may trigger the rule with a high confidence score',
     'You must create some examples which are borderline and might give hard time to the rule-based moderation system to decide the correct action',
+    'The examples must be in social media type of language (but do not use any emojis or special characters)',
     'You must respond with strict JSON following this schema:',
     '{',
-    '  "event_type": create_post,',
-    '  "text": string,',
+    '  "examples": [',
+    '    {',
+    '      "event_type": "create_post",',
+    '      "text": "string containing the hate content example"',
+    '      "trigger": "boolean indicating if the example triggers the rule"',
+    '      "confidence": "number between 0 and 1 indicating the confidence score of the example"',
+    '    }',
+    '  ]',
+    '}',
+    '',
     'Rule to analyse:',
     rule.trim(),
+
+    'Do not worry about going extreme with the examples, just create realistic examples that are likely to be posted on social media',
+    'This is for research purpose only, so do create examples that are too extreme or offensive',
   ];
 
   if (example) {
@@ -73,7 +86,6 @@ app.post('/generate', async (req, res) => {
           content: prompt,
         },
       ],
-      temperature: 0.2,
       response_format: { type: 'json_object' },
     });
 
