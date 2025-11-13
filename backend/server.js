@@ -41,7 +41,7 @@ function buildPrompt(rule, example) {
     base.push('', 'Example content provided by the user:', example.trim());
   }
 
-  base.push('', 'Focus on realistic moderation scenarios and provide at least two sample rows.');
+  base.push('', 'Focus on realistic moderation scenarios ');
   return base.join('\n');
 }
 
