@@ -97,6 +97,142 @@ function createTableElement(table) {
   return container;
 }
 
+function createJudgeRoster(judges) {
+  const roster = document.createElement('div');
+  roster.className = 'judge-roster';
+
+  judges.forEach((judge) => {
+    const card = document.createElement('article');
+    card.className = 'judge-card';
+
+    const name = document.createElement('strong');
+    name.textContent = judge.name;
+    card.append(name);
+
+    const meta = document.createElement('p');
+    const experience = judge.experienceYears ? `${judge.experienceYears} yrs exp` : 'Perspective';
+    meta.className = 'judge-meta';
+    meta.textContent = `${judge.role} · ${experience}`;
+    card.append(meta);
+
+    if (judge.personality) {
+      const desc = document.createElement('p');
+      desc.textContent = judge.personality;
+      card.append(desc);
+    }
+  });
+
+  return roster;
+}
+
+function parseJudgeSummary(summaryText) {
+  if (!summaryText) {
+    return [];
+  }
+
+  const judgesData = [];
+  let currentJudge = null;
+
+  summaryText.split('\n').forEach((rawLine) => {
+    const line = rawLine.trim();
+    if (!line) {
+      return;
+    }
+
+    if (line.toLowerCase().startsWith('judge:')) {
+      const name = line.slice(line.indexOf(':') + 1).trim();
+      if (name) {
+        currentJudge = { name, verdicts: [] };
+        judgesData.push(currentJudge);
+      }
+      return;
+    }
+
+    if (!currentJudge) {
+      return;
+    }
+
+    const verdictMatch = line.match(/^-?\s*Testcase\s+(\d+):\s*([\d.]+)%\s*-\s*(.+)$/i);
+    if (verdictMatch) {
+      currentJudge.verdicts.push({
+        testcaseId: Number(verdictMatch[1]),
+        percentage: Number(verdictMatch[2]),
+        rationale: verdictMatch[3].trim(),
+      });
+    } else {
+      currentJudge.verdicts.push({
+        testcaseId: null,
+        percentage: null,
+        rationale: line,
+      });
+    }
+  });
+
+  return judgesData;
+}
+
+function createJudgeSummaryCards(summaryText) {
+  const parsedJudges = parseJudgeSummary(summaryText);
+  if (!parsedJudges.length) {
+    return createPreformatted(summaryText);
+  }
+
+  const grid = document.createElement('div');
+  grid.className = 'judge-summary-grid';
+
+  parsedJudges.forEach((judge) => {
+    const card = document.createElement('article');
+    card.className = 'judge-summary-card';
+
+    const name = document.createElement('h4');
+    name.textContent = judge.name;
+    card.append(name);
+
+    if (Array.isArray(judge.verdicts) && judge.verdicts.length) {
+      const list = document.createElement('ul');
+      list.className = 'judge-summary-list';
+
+      judge.verdicts.forEach((verdict) => {
+        const item = document.createElement('li');
+
+        if (typeof verdict.testcaseId === 'number') {
+          const header = document.createElement('div');
+          header.className = 'judge-summary-row';
+
+          const label = document.createElement('span');
+          label.className = 'testcase-label';
+          label.textContent = `Testcase ${verdict.testcaseId}`;
+          header.append(label);
+
+          if (typeof verdict.percentage === 'number' && Number.isFinite(verdict.percentage)) {
+            const score = document.createElement('span');
+            score.className = 'testcase-score';
+            score.textContent = `${verdict.percentage}%`;
+            header.append(score);
+          }
+
+          item.append(header);
+        }
+
+        if (verdict.rationale) {
+          const rationale = document.createElement('p');
+          rationale.className = 'testcase-rationale';
+          rationale.textContent = verdict.rationale;
+          item.append(rationale);
+        }
+
+        list.append(item);
+      });
+
+      card.append(list);
+    }
+
+    grid.append(card);
+  });
+
+  return grid;
+}
+
 async function handleGenerate() {
   const rule = ruleField.value.trim();
   const example = exampleField.value.trim();
@@ -131,17 +267,26 @@ async function handleGenerate() {
       summaryNodes.push(createParagraph(payload.notes));
     }
 
-    if (payload.prompt) {
-      const promptLabel = document.createElement('h3');
-      promptLabel.textContent = 'Prompt prepared for GPT';
-      summaryNodes.push(promptLabel, createPreformatted(payload.prompt));
-    }
-
     if (payload.usedFallback) {
       const warning = document.createElement('p');
       warning.className = 'fallback-note';
       warning.textContent = 'Fallback dataset used (no live GPT response).';
       summaryNodes.push(warning);
+    }
+
+    if (Array.isArray(payload.judges) && payload.judges.length) {
+      const heading = document.createElement('h3');
+      heading.textContent = 'Judge Panel';
+      summaryNodes.push(heading, createJudgeRoster(payload.judges));
+    }
+
+    const judgeSummaryText = typeof payload.judgeSummary === 'string' ? payload.judgeSummary.trim() : '';
+    if (judgeSummaryText) {
+      const heading = document.createElement('h3');
+      heading.textContent = 'Judge Summary';
+      summaryNodes.push(heading, createJudgeSummaryCards(judgeSummaryText));
+    } else {
+      summaryNodes.push(createParagraph('Judge summary was unavailable. Check the server logs for details.'));
     }
 
     setPanelContent(resultPanel, summaryNodes);

@@ -1,0 +1,55 @@
+const judges = [
+  {
+    id: 'judge_veteran_10',
+    name: 'Elena Ruiz',
+    role: 'Senior Content Moderator',
+    experienceYears: 10,
+    personality: 'Data-driven, zero-tolerance for clearly targeted hate speech, but open to nuance when context supports it.',
+    //strictness: 0.85,
+    //bias: 0.05,
+    //focus: 'pattern recognition and escalation history',
+  },
+  {
+    id: 'judge_mid_5',
+    name: 'Marcus Li',
+    role: 'Regional Moderator Lead',
+    experienceYears: 5,
+    personality: 'Balances policy enforcement with creator retention; pragmatic and process-oriented.',
+    //strictness: 0.7,
+    //bias: 0.02,
+    //focus: 'policy precedent',
+  },
+  {
+    id: 'judge_junior_1',
+    name: 'Priya Desai',
+    role: 'Associate Moderator',
+    experienceYears: 1,
+    personality: 'Eager and cautious, relies heavily on written policy and team guidance.',
+    //strictness: 0.55,
+    //bias: -0.01,
+    //focus: 'literal wording',
+  },
+  {
+    id: 'judge_owner',
+    name: 'Rosa Bennett',
+    role: 'Social Platform Founder',
+    experienceYears: 0,
+    personality: 'Thinks about business risk, advertiser safety, and user trust holistically.',
+    //strictness: 0.65,
+    //bias: 0,
+    //focus: 'brand and legal exposure',
+  },
+  {
+    id: 'judge_user',
+    name: 'Devon Brooks',
+    role: 'Daily User',
+    experienceYears: 0,
+    personality: 'Values free expression but dislikes targeted harassment that ruins community vibes.',
+    //strictness: 0.5,
+    // bias: -0.02,
+    //focus: 'community sentiment',
+  },
+];
+
+module.exports = judges;
+

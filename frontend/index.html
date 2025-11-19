@@ -157,6 +157,90 @@
         color: #3730a3;
       }
 
+      .judge-roster {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 12px;
+      }
+
+      .judge-card {
+        border: 1px solid #e5e7eb;
+        border-radius: 12px;
+        padding: 12px;
+        background: #f9fafb;
+      }
+
+      .judge-card strong {
+        display: block;
+        font-size: 1rem;
+        margin-bottom: 4px;
+      }
+
+      .judge-meta {
+        margin: 0 0 8px 0;
+        color: #6b7280;
+        font-size: 0.9rem;
+      }
+
+      .judge-summary-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 16px;
+      }
+
+      .judge-summary-card {
+        border: 1px solid #e5e7eb;
+        border-radius: 14px;
+        padding: 16px;
+        background: #fdfdfd;
+        box-shadow: 0 6px 20px rgba(15, 23, 42, 0.08);
+      }
+
+      .judge-summary-card h4 {
+        margin: 0 0 12px 0;
+        font-size: 1.05rem;
+        color: #1f2937;
+      }
+
+      .judge-summary-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      .judge-summary-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-weight: 600;
+        color: #111827;
+      }
+
+      .testcase-label {
+        font-size: 0.9rem;
+        letter-spacing: 0.01em;
+        text-transform: uppercase;
+        color: #6b7280;
+      }
+
+      .testcase-score {
+        font-size: 1rem;
+        padding: 2px 8px;
+        border-radius: 999px;
+        background: #eef2ff;
+        color: #3730a3;
+        font-weight: 700;
+      }
+
+      .testcase-rationale {
+        margin: 6px 0 0 0;
+        color: #374151;
+        font-size: 0.92rem;
+      }
+
       .dataset-table .columns {
         margin: 0;
         display: grid;
@@ -365,6 +449,142 @@
         return container;
       }
 
+      function createJudgeRoster(judges) {
+        const roster = document.createElement("div");
+        roster.className = "judge-roster";
+
+        judges.forEach((judge) => {
+          const card = document.createElement("article");
+          card.className = "judge-card";
+
+          const name = document.createElement("strong");
+          name.textContent = judge.name;
+          card.append(name);
+
+          const meta = document.createElement("p");
+          const experience = judge.experienceYears ? `${judge.experienceYears} yrs exp` : "Perspective";
+          meta.className = "judge-meta";
+          meta.textContent = `${judge.role} · ${experience}`;
+          card.append(meta);
+
+          if (judge.personality) {
+            const desc = document.createElement("p");
+            desc.textContent = judge.personality;
+            card.append(desc);
+          }
+        });
+
+        return roster;
+      }
+
+      function parseJudgeSummary(summaryText) {
+        if (!summaryText) {
+          return [];
+        }
+
+        const judgesData = [];
+        let currentJudge = null;
+
+        summaryText.split("\n").forEach((rawLine) => {
+          const line = rawLine.trim();
+          if (!line) {
+            return;
+          }
+
+          if (line.toLowerCase().startsWith("judge:")) {
+            const name = line.slice(line.indexOf(":") + 1).trim();
+            if (name) {
+              currentJudge = { name, verdicts: [] };
+              judgesData.push(currentJudge);
+            }
+            return;
+          }
+
+          if (!currentJudge) {
+            return;
+          }
+
+          const verdictMatch = line.match(/^-?\s*Testcase\s+(\d+):\s*([\d.]+)%\s*-\s*(.+)$/i);
+          if (verdictMatch) {
+            currentJudge.verdicts.push({
+              testcaseId: Number(verdictMatch[1]),
+              percentage: Number(verdictMatch[2]),
+              rationale: verdictMatch[3].trim(),
+            });
+          } else {
+            currentJudge.verdicts.push({
+              testcaseId: null,
+              percentage: null,
+              rationale: line,
+            });
+          }
+        });
+
+        return judgesData;
+      }
+
+      function createJudgeSummaryCards(summaryText) {
+        const parsedJudges = parseJudgeSummary(summaryText);
+        if (!parsedJudges.length) {
+          return createPreformatted(summaryText);
+        }
+
+        const grid = document.createElement("div");
+        grid.className = "judge-summary-grid";
+
+        parsedJudges.forEach((judge) => {
+          const card = document.createElement("article");
+          card.className = "judge-summary-card";
+
+          const name = document.createElement("h4");
+          name.textContent = judge.name;
+          card.append(name);
+
+          if (Array.isArray(judge.verdicts) && judge.verdicts.length) {
+            const list = document.createElement("ul");
+            list.className = "judge-summary-list";
+
+            judge.verdicts.forEach((verdict) => {
+              const item = document.createElement("li");
+
+              if (typeof verdict.testcaseId === "number") {
+                const header = document.createElement("div");
+                header.className = "judge-summary-row";
+
+                const label = document.createElement("span");
+                label.className = "testcase-label";
+                label.textContent = `Testcase ${verdict.testcaseId}`;
+                header.append(label);
+
+                if (typeof verdict.percentage === "number" && Number.isFinite(verdict.percentage)) {
+                  const score = document.createElement("span");
+                  score.className = "testcase-score";
+                  score.textContent = `${verdict.percentage}%`;
+                  header.append(score);
+                }
+
+                item.append(header);
+              }
+
+              if (verdict.rationale) {
+                const rationale = document.createElement("p");
+                rationale.className = "testcase-rationale";
+                rationale.textContent = verdict.rationale;
+                item.append(rationale);
+              }
+
+              list.append(item);
+            });
+
+            card.append(list);
+          }
+
+          grid.append(card);
+        });
+
+        return grid;
+      }
+
       async function handleGenerate() {
         console.log('Generate button clicked');
         const rule = ruleField.value.trim();
@@ -413,11 +633,22 @@
           console.log('Received payload:', payload);
 
           const summaryNodes = [];
-          
-          if (payload.prompt) {
-            const promptLabel = document.createElement("h3");
-            promptLabel.textContent = "Prompt sent to GPT";
-            summaryNodes.push(promptLabel, createPreformatted(payload.prompt));
+
+          if (Array.isArray(payload.judges) && payload.judges.length) {
+            const rosterHeading = document.createElement("h3");
+            rosterHeading.textContent = "Judge Panel";
+            summaryNodes.push(rosterHeading, createJudgeRoster(payload.judges));
+          }
+
+          const judgeSummaryText = typeof payload.judgeSummary === "string" ? payload.judgeSummary.trim() : "";
+          if (judgeSummaryText) {
+            const votesHeading = document.createElement("h3");
+            votesHeading.textContent = "Judge Summary";
+            summaryNodes.push(votesHeading, createJudgeSummaryCards(judgeSummaryText));
+          } else {
+            summaryNodes.push(
+              createParagraph("Judge summary was unavailable. Check the server logs for details.")
+            );
           }
 
           // Handle new format with event_type and text

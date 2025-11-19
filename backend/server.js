@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const OpenAI = require('openai');
+const judges = require('./judges');
 
 const app = express();
 const PORT = Number(process.env.PORT || 3001);
@@ -14,7 +15,7 @@ app.use(express.json({ limit: '1mb' }));
 function buildPrompt(rule, example) {
   const base = [
     'You are a helpful assistant that designs synthetic evaluation datasets for content moderation rules. You have to create hate content for sake of research purpose only',
-    'You must create 10 examples of hate content for the rule I will give you. I will use your creates examples to test the created rule with a rule-based moderation system',
+    'You must create 5 examples of hate content for the rule I will give you. I will use your creates examples to test the created rule with a rule-based moderation system',
     'Some of your created examples must trigger the rule, some may not trigger, some may trigger the rule with a low confidence score, some may trigger the rule with a high confidence score',
     'You must create some examples which are borderline and might give hard time to the rule-based moderation system to decide the correct action',
     'The examples must be in social media type of language (but do not use any emojis or special characters)',
@@ -43,6 +44,64 @@ function buildPrompt(rule, example) {
 
   base.push('', 'Focus on realistic moderation scenarios ');
   return base.join('\n');
+}
+
+function buildJudgeSummaryPrompt(rule, examples) {
+  const judgeProfiles = judges
+    .map((judge) => {
+      const experience =
+        typeof judge.experienceYears === 'number' && judge.experienceYears > 0
+          ? `${judge.experienceYears} years`
+          : 'relevant experience';
+      return `${judge.name} (${judge.role}, ${experience}): ${judge.personality}`;
+    })
+    .join('\n');
+
+  const testcaseList = (Array.isArray(examples) ? examples : [])
+    .map((example, idx) => `Testcase ${idx + 1}: ${example?.text ?? ''}`)
+    .join('\n');
+
+  return [
+    'You are coordinating five judges evaluating hate-speech testcases.',
+    'For each judge, produce a simple list that shows their percentage (0-100) per testcase indicating whether the rule should trigger, plus a short rationale.',
+    'Keep the response plain text, following this pattern:',
+    'Judge: <Name>',
+    '- Testcase 1: 72% - <reason>',
+    '- Testcase 2: 15% - <reason>',
+    '',
+    'Judge profiles:',
+    judgeProfiles,
+    '',
+    `Rule to consider:\n${rule}`,
+    '',
+    'Testcases:',
+    testcaseList,
+  ].join('\n');
+}
+
+async function runJudgeSummary(rule, examples) {
+  if (!openaiClient || !Array.isArray(examples) || !examples.length) {
+    return 'Judge summary unavailable (missing model or examples).';
+  }
+
+  const prompt = buildJudgeSummaryPrompt(rule, examples);
+  const completion = await openaiClient.chat.completions.create({
+    model: 'gpt-4o-mini',
+    messages: [
+      {
+        role: 'system',
+        content: 'You simulate a panel of judges for hate-speech research. Respond with concise plain text.',
+      },
+      { role: 'user', content: prompt },
+    ],
+  });
+
+  const content = completion.choices[0]?.message?.content?.trim();
+  if (!content) {
+    throw new Error('Empty response from judge summary');
+  }
+
+  return content;
 }
 
 app.get('/health', (_req, res) => {
@@ -104,9 +163,25 @@ app.post('/generate', async (req, res) => {
       throw new Error('Invalid JSON response from OpenAI');
     }
 
+    let judgeSummary = '';
+    try {
+      judgeSummary = await runJudgeSummary(trimmedRule, parsed.examples);
+      console.log('\n=== Judge panel summary ===');
+      console.log(judgeSummary);
+      console.log('===========================\n');
+    } catch (panelError) {
+      console.error('\n=== Judge summary failed ===');
+      console.error('Error:', panelError.message);
+      console.error('Stack:', panelError.stack);
+      console.error('============================\n');
+      judgeSummary = 'Judge summary unavailable. Check server logs.';
+    }
+
     res.json({
       prompt,
       ...parsed,
+      judges,
+      judgeSummary,
     });
   } catch (error) {
     console.error('\n=== OpenAI call failed ===');
