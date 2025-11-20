@@ -36,6 +36,7 @@ function buildPrompt(rule, example) {
 
     'Do not worry about going extreme with the examples, just create realistic examples that are likely to be posted on social media',
     'This is for research purpose only, so do create examples that are too extreme or offensive',
+    'There will be judges judge your examples, so make sure to create tricky examples that might give hard time to the judges to decide the correct action'
   ];
 
   if (example) {
@@ -62,7 +63,7 @@ function buildJudgeSummaryPrompt(rule, examples) {
     .join('\n');
 
   return [
-    'You are coordinating five judges evaluating hate-speech testcases.',
+    'You are coordinating five judges evaluating testcases for a text detection rule.', 
     'For each judge, produce a simple list that shows their percentage (0-100) per testcase indicating whether the rule should trigger, plus a short rationale.',
     'Keep the response plain text, following this pattern:',
     'Judge: <Name>',
@@ -76,6 +77,8 @@ function buildJudgeSummaryPrompt(rule, examples) {
     '',
     'Testcases:',
     testcaseList,
+    'Pay a lot of attention to the rule, because it has to be triggered by the testcases. For example if the rule says specifically to not allow a specific word, then all the testcases containing that specific word should be triggered for sure!',
+    'Consider the rule as the only context available, so your reasoning should be based on the rule only. Do not use any other information or context to make your decisions.'
   ].join('\n');
 }
 
@@ -90,7 +93,7 @@ async function runJudgeSummary(rule, examples) {
     messages: [
       {
         role: 'system',
-        content: 'You simulate a panel of judges for hate-speech research. Respond with concise plain text.',
+        content: 'You simulate a panel of judges for text detection research. Respond with concise plain text.', //change
       },
       { role: 'user', content: prompt },
     ],
