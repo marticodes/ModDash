@@ -33,6 +33,25 @@
         font-size: 2.25rem;
         letter-spacing: 0.08em;
         font-weight: 600;
+        flex: 1;
+      }
+
+      header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+      }
+
+      .top-actions {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .secondary-button {
+        background: #111827;
+        background-image: none;
       }
 
       .layout {
@@ -105,25 +124,8 @@
       }
 
       .results {
-        display: grid;
-        grid-template-rows: auto 1fr;
-        gap: 16px;
-      }
-
-      .results-header {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 16px;
-        font-weight: 600;
-        font-size: 0.95rem;
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
-        color: #4b5563;
-      }
-
-      .results-panels {
-        display: grid;
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+        display: flex;
+        flex-direction: column;
         gap: 16px;
       }
 
@@ -133,6 +135,8 @@
         box-shadow: inset 0 0 0 2px #e5e7eb;
         padding: 20px;
         min-height: 220px;
+        max-height: calc(100vh - 160px);
+        overflow-y: auto;
         font-size: 0.95rem;
         color: #4b5563;
       }
@@ -287,16 +291,141 @@
         cursor: progress;
       }
 
+      .result-toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        font-size: 0.9rem;
+        color: #4b5563;
+      }
+
+      .result-toolbar-left {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .result-toolbar-title {
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+
+      .result-toolbar-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .result-toolbar button {
+        padding: 8px 14px;
+        font-size: 0.85rem;
+        border-radius: 999px;
+      }
+
+      .chip-toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        border: 1px solid #e5e7eb;
+        background: #f9fafb;
+        font-size: 0.85rem;
+        cursor: pointer;
+      }
+
+      .chip-toggle input {
+        margin: 0;
+      }
+
+      .testcase-list {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      .testcase-card {
+        border-radius: 14px;
+        border: 1px solid #e5e7eb;
+        padding: 14px 16px;
+        background: #f9fafb;
+        display: flex;
+        gap: 12px;
+      }
+
+      .testcase-checkbox {
+        margin-top: 4px;
+      }
+
+      .testcase-body {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .testcase-meta {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        font-size: 0.85rem;
+        color: #6b7280;
+      }
+
+      .testcase-title {
+        font-weight: 600;
+      }
+
+      .score-pill {
+        padding: 2px 10px;
+        border-radius: 999px;
+        background: #ecfdf3;
+        color: #166534;
+        font-weight: 600;
+        font-size: 0.8rem;
+      }
+
+      .testcase-judges {
+        margin-top: 4px;
+        padding-top: 6px;
+        border-top: 1px dashed #e5e7eb;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      .testcase-judge-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        font-size: 0.85rem;
+        color: #374151;
+      }
+
+      .testcase-judge-name {
+        font-weight: 600;
+      }
+
+      .testcase-judge-score {
+        font-weight: 600;
+        color: #3730a3;
+      }
+
+      .testcase-judge-rationale {
+        font-size: 0.8rem;
+        color: #6b7280;
+      }
+
+      .empty-state {
+        font-size: 0.95rem;
+        color: #9ca3af;
+      }
+
       @media (max-width: 960px) {
         .layout {
-          grid-template-columns: 1fr;
-        }
-
-        .results-header {
-          grid-template-columns: 1fr;
-        }
-
-        .results-panels {
           grid-template-columns: 1fr;
         }
       }
@@ -306,6 +435,11 @@
     <div class="page">
       <header>
         <h1>ModDash</h1>
+        <div class="top-actions">
+          <button id="generate-dataset" type="button" class="secondary-button">
+            Generate dataset
+          </button>
+        </div>
       </header>
       <main class="layout">
         <section class="card" aria-labelledby="rule-builder">
@@ -328,22 +462,26 @@
         </section>
 
         <section class="results">
-          <div class="results-header">
-            <span>Result</span>
-            <span>Dataset</span>
+          <div class="result-toolbar">
+            <div class="result-toolbar-left">
+              <span class="result-toolbar-title">Result</span>
+              <label class="chip-toggle">
+                <input type="checkbox" id="select-all" />
+                <span>Select all</span>
+              </label>
+              <span id="selection-count">0 selected</span>
+            </div>
+            <div class="result-toolbar-actions">
+              <button type="button" id="delete-selected">Delete</button>
+              <button type="button" id="evaluate-selected">Evaluate</button>
+              <button type="button" id="generate-more-like">Generate more like these</button>
+            </div>
           </div>
-          <div class="results-panels">
-            <div
-              id="result-panel"
-              class="panel"
-              data-placeholder="Placeholder for Osprey later"
-            ></div>
-            <div
-              id="dataset-panel"
-              class="panel"
-              data-placeholder="Generated datasets will appear here..."
-            ></div>
-          </div>
+          <div
+            id="result-panel"
+            class="panel"
+            data-placeholder="Generated testcases will appear here..."
+          ></div>
         </section>
       </main>
     </div>
@@ -352,9 +490,19 @@
       const exampleField = document.querySelector("#example");
       const generateButton = document.querySelector("#generate");
       const resultPanel = document.querySelector("#result-panel");
-      const datasetPanel = document.querySelector("#dataset-panel");
+      const generateDatasetButton = document.querySelector("#generate-dataset");
+      const selectAllCheckbox = document.querySelector("#select-all");
+      const deleteSelectedButton = document.querySelector("#delete-selected");
+      const evaluateSelectedButton = document.querySelector("#evaluate-selected");
+      const generateMoreLikeButton = document.querySelector("#generate-more-like");
+      const selectionCountLabel = document.querySelector("#selection-count");
 
       const API_BASE = window.__MODDASH_API_BASE__ || "http://127.0.0.1:3001";
+
+      /** In-memory state for current testcases */
+      let currentTestcases = [];
+      let selectedIds = new Set();
+      let lastRule = "";
 
       function setPanelContent(panel, nodes) {
         panel.innerHTML = "";
@@ -386,67 +534,6 @@
         pre.style.whiteSpace = "pre-wrap";
         pre.style.wordBreak = "break-word";
         return pre;
-      }
-
-      function createTableElement(table) {
-        const container = document.createElement("article");
-        container.className = "dataset-table";
-
-        const heading = document.createElement("h3");
-        heading.textContent = table.name;
-        container.append(heading);
-
-        if (table.description) {
-          container.append(createParagraph(table.description));
-        }
-
-        if (Array.isArray(table.columns) && table.columns.length) {
-          const columnList = document.createElement("dl");
-          columnList.className = "columns";
-
-          table.columns.forEach((column) => {
-            const title = document.createElement("dt");
-            title.textContent = `${column.name} (${column.type})`;
-            columnList.append(title);
-
-            if (column.description) {
-              const detail = document.createElement("dd");
-              detail.textContent = column.description;
-              columnList.append(detail);
-            }
-          });
-
-          container.append(columnList);
-        }
-
-        if (Array.isArray(table.sampleRows) && table.sampleRows.length) {
-          const tableElement = document.createElement("table");
-          tableElement.className = "sample-rows";
-          const headerRow = document.createElement("tr");
-
-          const keys = Object.keys(table.sampleRows[0]);
-          keys.forEach((key) => {
-            const th = document.createElement("th");
-            th.textContent = key;
-            headerRow.append(th);
-          });
-
-          tableElement.append(headerRow);
-
-          table.sampleRows.forEach((row) => {
-            const tr = document.createElement("tr");
-            keys.forEach((key) => {
-              const td = document.createElement("td");
-              td.textContent = row[key] ?? "";
-              tr.append(td);
-            });
-            tableElement.append(tr);
-          });
-
-          container.append(tableElement);
-        }
-
-        return container;
       }
 
       function createJudgeRoster(judges) {
@@ -585,6 +672,108 @@
         return grid;
       }
 
+      function updateSelectionCount() {
+        const count = selectedIds.size;
+        selectionCountLabel.textContent = `${count} selected`;
+        selectAllCheckbox.checked = count > 0 && count === currentTestcases.length;
+      }
+
+      function renderTestcases() {
+        if (!currentTestcases.length) {
+          setPanelContent(resultPanel, createParagraph("No testcases yet. Click Generate to create some."));
+          selectionCountLabel.textContent = "0 selected";
+          selectAllCheckbox.checked = false;
+          return;
+        }
+
+        const list = document.createElement("div");
+        list.className = "testcase-list";
+
+        currentTestcases.forEach((tc, index) => {
+          const card = document.createElement("article");
+          card.className = "testcase-card";
+
+          const checkbox = document.createElement("input");
+          checkbox.type = "checkbox";
+          checkbox.className = "testcase-checkbox";
+          checkbox.checked = selectedIds.has(index);
+          checkbox.addEventListener("change", () => {
+            if (checkbox.checked) {
+              selectedIds.add(index);
+            } else {
+              selectedIds.delete(index);
+            }
+            updateSelectionCount();
+          });
+
+          const body = document.createElement("div");
+          body.className = "testcase-body";
+
+          const metaRow = document.createElement("div");
+          metaRow.className = "testcase-meta";
+
+          const title = document.createElement("span");
+          title.className = "testcase-title";
+          title.textContent = `Testcase ${index + 1}`;
+          metaRow.appendChild(title);
+
+          if (tc.evaluation && typeof tc.evaluation.overallScore === "number") {
+            const score = document.createElement("span");
+            score.className = "score-pill";
+            score.textContent = `Result: ${tc.evaluation.overallScore}%`;
+            metaRow.appendChild(score);
+          }
+
+          body.appendChild(metaRow);
+
+          if (tc.text) {
+            body.appendChild(createPreformatted(tc.text));
+          }
+
+          if (tc.evaluation && Array.isArray(tc.evaluation.judges) && tc.evaluation.judges.length) {
+            const judgesContainer = document.createElement("div");
+            judgesContainer.className = "testcase-judges";
+
+            tc.evaluation.judges.forEach((j) => {
+              const row = document.createElement("div");
+              row.className = "testcase-judge-row";
+
+              const left = document.createElement("div");
+              const name = document.createElement("span");
+              name.className = "testcase-judge-name";
+              name.textContent = j.name;
+              left.appendChild(name);
+
+              if (j.rationale) {
+                const rationale = document.createElement("div");
+                rationale.className = "testcase-judge-rationale";
+                rationale.textContent = j.rationale;
+                left.appendChild(rationale);
+              }
+
+              const right = document.createElement("span");
+              right.className = "testcase-judge-score";
+              if (typeof j.percentage === "number" && Number.isFinite(j.percentage)) {
+                right.textContent = `${j.percentage}%`;
+              }
+
+              row.appendChild(left);
+              row.appendChild(right);
+              judgesContainer.appendChild(row);
+            });
+
+            body.appendChild(judgesContainer);
+          }
+
+          card.appendChild(checkbox);
+          card.appendChild(body);
+          list.appendChild(card);
+        });
+
+        setPanelContent(resultPanel, list);
+        updateSelectionCount();
+      }
+
       async function handleGenerate() {
         console.log('Generate button clicked');
         const rule = ruleField.value.trim();
@@ -595,6 +784,8 @@
           return;
         }
 
+        lastRule = rule;
+
         console.log('Sending request to:', `${API_BASE}/generate`);
         console.log('Rule:', rule);
         console.log('Example:', example || '(none)');
@@ -603,13 +794,14 @@
         generateButton.textContent = "Generating...";
 
         setPanelPlaceholder(resultPanel, "Working on it...");
-        setPanelPlaceholder(datasetPanel, "Working on it...");
+        selectedIds.clear();
+        updateSelectionCount();
 
         try {
           const response = await fetch(`${API_BASE}/generate`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ rule, example: example || null }),
+            body: JSON.stringify({ rule, example: example || null, count: 15 }),
           });
 
           if (!response.ok) {
@@ -632,101 +824,17 @@
           const payload = await response.json();
           console.log('Received payload:', payload);
 
-          const summaryNodes = [];
-
-          if (Array.isArray(payload.judges) && payload.judges.length) {
-            const rosterHeading = document.createElement("h3");
-            rosterHeading.textContent = "Judge Panel";
-            summaryNodes.push(rosterHeading, createJudgeRoster(payload.judges));
-          }
-
-          const judgeSummaryText = typeof payload.judgeSummary === "string" ? payload.judgeSummary.trim() : "";
-          if (judgeSummaryText) {
-            const votesHeading = document.createElement("h3");
-            votesHeading.textContent = "Judge Summary";
-            summaryNodes.push(votesHeading, createJudgeSummaryCards(judgeSummaryText));
-          } else {
-            summaryNodes.push(
-              createParagraph("Judge summary was unavailable. Check the server logs for details.")
-            );
-          }
-
-          // Handle new format with event_type and text
-          if (payload.event_type || payload.text) {
-            const dataLabel = document.createElement("h3");
-            dataLabel.textContent = "Generated Content";
-            summaryNodes.push(dataLabel);
-            
-            if (payload.event_type) {
-              summaryNodes.push(createParagraph(`Event Type: ${payload.event_type}`));
-            }
-            
-            if (payload.text) {
-              summaryNodes.push(createPreformatted(payload.text));
-            }
-            
-            // If it's an array of examples
-            if (Array.isArray(payload.examples)) {
-              const examplesLabel = document.createElement("h3");
-              examplesLabel.textContent = "Examples";
-              summaryNodes.push(examplesLabel);
-              payload.examples.forEach((example, idx) => {
-                const exampleDiv = document.createElement("div");
-                exampleDiv.style.marginBottom = "16px";
-                exampleDiv.style.padding = "12px";
-                exampleDiv.style.backgroundColor = "#f3f4f6";
-                exampleDiv.style.borderRadius = "8px";
-                const exampleTitle = document.createElement("strong");
-                exampleTitle.textContent = `Example ${idx + 1}:`;
-                exampleDiv.appendChild(exampleTitle);
-                if (example.event_type) {
-                  exampleDiv.appendChild(createParagraph(`Event Type: ${example.event_type}`));
-                }
-                if (example.text) {
-                  exampleDiv.appendChild(createPreformatted(example.text));
-                }
-                summaryNodes.push(exampleDiv);
-              });
-            }
-          }
-          
-          // Handle old format with tables (for backward compatibility)
-          if (Array.isArray(payload.tables) && payload.tables.length) {
-            const tableNodes = payload.tables.map(createTableElement);
-            setPanelContent(datasetPanel, tableNodes);
-          } else if (payload.text || payload.examples) {
-            // Display the generated content in the dataset panel
-            const contentDiv = document.createElement("div");
-            if (payload.text) {
-              contentDiv.appendChild(createPreformatted(payload.text));
-            }
-            if (Array.isArray(payload.examples)) {
-              payload.examples.forEach((example, idx) => {
-                const exampleDiv = document.createElement("div");
-                exampleDiv.style.marginBottom = "16px";
-                exampleDiv.style.padding = "12px";
-                exampleDiv.style.backgroundColor = "#f3f4f6";
-                exampleDiv.style.borderRadius = "8px";
-                const exampleTitle = document.createElement("strong");
-                exampleTitle.textContent = `Example ${idx + 1}:`;
-                exampleDiv.appendChild(exampleTitle);
-                if (example.text) {
-                  exampleDiv.appendChild(createPreformatted(example.text));
-                }
-                contentDiv.appendChild(exampleDiv);
-              });
-            }
-            setPanelContent(datasetPanel, contentDiv);
-          } else {
-            // Display raw JSON if structure is unknown
-            setPanelContent(datasetPanel, createPreformatted(JSON.stringify(payload, null, 2)));
-          }
-
-          if (summaryNodes.length === 0) {
-            summaryNodes.push(createParagraph("Content generated successfully."));
-          }
-          
-          setPanelContent(resultPanel, summaryNodes);
+          const examples = Array.isArray(payload.examples) ? payload.examples : [];
+          currentTestcases = examples.map((ex) => ({
+            event_type: ex.event_type || ex.eventType || ex.event || null,
+            text: ex.text || "",
+            trigger: typeof ex.trigger === "boolean" ? ex.trigger : null,
+            confidence: typeof ex.confidence === "number" ? ex.confidence : null,
+            raw: ex,
+            evaluation: null,
+          }));
+          selectedIds.clear();
+          renderTestcases();
         } catch (error) {
           console.error('Error generating content:', error);
           const errorMsg = error.message || "Something went wrong while generating the dataset.";
@@ -734,7 +842,6 @@
             createParagraph("Error: " + errorMsg),
             createParagraph("Check the browser console and server logs for more details.")
           ]);
-          setPanelPlaceholder(datasetPanel, "Unable to generate dataset.");
         } finally {
           generateButton.disabled = false;
           generateButton.textContent = "Generate";
@@ -753,6 +860,197 @@
           }
         });
       });
+
+      selectAllCheckbox.addEventListener("change", () => {
+        if (selectAllCheckbox.checked) {
+          selectedIds = new Set(currentTestcases.map((_, idx) => idx));
+        } else {
+          selectedIds.clear();
+        }
+        renderTestcases();
+      });
+
+      deleteSelectedButton.addEventListener("click", () => {
+        if (!selectedIds.size) {
+          alert("Select at least one testcase to delete.");
+          return;
+        }
+        currentTestcases = currentTestcases.filter((_, idx) => !selectedIds.has(idx));
+        selectedIds.clear();
+        renderTestcases();
+      });
+
+      async function handleEvaluateSelected() {
+        if (!selectedIds.size) {
+          alert("Select at least one testcase to evaluate.");
+          return;
+        }
+        if (!lastRule) {
+          alert("You need to generate testcases with a rule before evaluating them.");
+          return;
+        }
+
+        const indices = Array.from(selectedIds.values()).sort((a, b) => a - b);
+        const examples = indices.map((idx) => currentTestcases[idx].raw || { text: currentTestcases[idx].text });
+
+        evaluateSelectedButton.disabled = true;
+        evaluateSelectedButton.textContent = "Evaluating...";
+
+        try {
+          const response = await fetch(`${API_BASE}/evaluate`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ rule: lastRule, examples }),
+          });
+
+          if (!response.ok) {
+            let msg = `Evaluation failed with status ${response.status}`;
+            try {
+              const data = await response.json();
+              msg = data.error || data.details || msg;
+            } catch {
+              const text = await response.text();
+              if (text) msg = text;
+            }
+            throw new Error(msg);
+          }
+
+          const payload = await response.json();
+          const judgeSummaryText = typeof payload.judgeSummary === "string" ? payload.judgeSummary.trim() : "";
+          const parsedJudges = parseJudgeSummary(judgeSummaryText);
+
+          const byLocalId = new Map();
+          parsedJudges.forEach((judge) => {
+            (judge.verdicts || []).forEach((v) => {
+              if (typeof v.testcaseId === "number") {
+                const localId = v.testcaseId;
+                if (!byLocalId.has(localId)) {
+                  byLocalId.set(localId, { scores: [], judges: [] });
+                }
+                const bucket = byLocalId.get(localId);
+                if (typeof v.percentage === "number" && Number.isFinite(v.percentage)) {
+                  bucket.scores.push(v.percentage);
+                }
+                bucket.judges.push({
+                  name: judge.name,
+                  percentage: v.percentage,
+                  rationale: v.rationale,
+                });
+              }
+            });
+          });
+
+          byLocalId.forEach((bucket, localId) => {
+            const globalIndex = indices[localId - 1];
+            if (globalIndex == null) return;
+            const avg =
+              bucket.scores.length > 0
+                ? Math.round(bucket.scores.reduce((a, b) => a + b, 0) / bucket.scores.length)
+                : null;
+            currentTestcases[globalIndex].evaluation = {
+              overallScore: avg,
+              judges: bucket.judges,
+            };
+          });
+
+          // Clear selection after evaluation so testcases are no longer highlighted
+          selectedIds.clear();
+
+          renderTestcases();
+        } catch (error) {
+          console.error("Error evaluating testcases:", error);
+          alert(error.message || "Something went wrong while evaluating the selected testcases.");
+        } finally {
+          evaluateSelectedButton.disabled = false;
+          evaluateSelectedButton.textContent = "Evaluate";
+        }
+      }
+
+      evaluateSelectedButton.addEventListener("click", () => {
+        handleEvaluateSelected();
+      });
+
+      async function handleGenerateMoreLike() {
+        if (!selectedIds.size) {
+          alert("Select at least one testcase to generate similar ones.");
+          return;
+        }
+        if (!lastRule) {
+          alert("You need a rule before generating similar testcases.");
+          return;
+        }
+
+        // Use the selected testcases' text as an aggregated example to steer generation.
+        const selectedTexts = Array.from(selectedIds.values())
+          .sort((a, b) => a - b)
+          .map((idx) => currentTestcases[idx].text)
+          .filter(Boolean);
+
+        if (!selectedTexts.length) {
+          alert("Selected testcases have no text to condition on.");
+          return;
+        }
+
+        const example = selectedTexts.join("\n\n---\n\n");
+
+        try {
+          generateMoreLikeButton.disabled = true;
+          generateMoreLikeButton.textContent = "Generating...";
+
+          const response = await fetch(`${API_BASE}/generate`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ rule: lastRule, example, count: 5 }),
+          });
+
+          if (!response.ok) {
+            let errorMessage = `Request failed with status ${response.status}`;
+            try {
+              const errorData = await response.json();
+              errorMessage = errorData.error || errorData.details || errorMessage;
+            } catch (e) {
+              const text = await response.text();
+              if (text) {
+                errorMessage = text;
+              }
+            }
+            throw new Error(errorMessage);
+          }
+
+          const payload = await response.json();
+          const examples = Array.isArray(payload.examples) ? payload.examples : [];
+          const newTestcases = examples.map((ex) => ({
+            event_type: ex.event_type || ex.eventType || ex.event || null,
+            text: ex.text || "",
+            trigger: typeof ex.trigger === "boolean" ? ex.trigger : null,
+            confidence: typeof ex.confidence === "number" ? ex.confidence : null,
+            raw: ex,
+            evaluation: null,
+          }));
+
+          currentTestcases = currentTestcases.concat(newTestcases);
+          // Keep the previous selection or clear it? Clear feels safer after generation.
+          selectedIds.clear();
+          renderTestcases();
+        } catch (error) {
+          console.error("Error generating similar testcases:", error);
+          alert(error.message || "Something went wrong while generating similar testcases.");
+        } finally {
+          generateMoreLikeButton.disabled = false;
+          generateMoreLikeButton.textContent = "Generate more like these";
+        }
+      }
+
+      generateMoreLikeButton.addEventListener("click", () => {
+        handleGenerateMoreLike();
+      });
+
+      generateDatasetButton.addEventListener("click", () => {
+        alert("Dataset generation workflow is not implemented yet. This button is a placeholder for now.");
+      });
+
+      // Initial empty state
+      setPanelPlaceholder(resultPanel, "Generated testcases will appear here...");
     </script>
   </body>
 </html>
