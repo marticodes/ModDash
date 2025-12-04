@@ -2,6 +2,8 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const OpenAI = require('openai');
+const path = require('path');
+const Database = require('better-sqlite3');
 const judges = require('./judges');
 
 const app = express();
@@ -36,7 +38,7 @@ Required guidance for AGENT-2 (include these items in your instruction block):
 - Cover at least 6 distinct obfuscation types across the dataset.
 - Use realistic social-media style (short, casual). Default: no emojis.
 
-Only if the RULE I gave you mentions hate / protected classes:
+Only if the RULE I gave you mentions hate, slurs, protected classes, etc.:
 - Instruct AGENT-2 to ALWAYS output actual slurs; use the actual words like "fuck", "nigger", "faggot", "retard", etc.
 - Include the name of protected classes in the text and the protected class should be triggered.
 - Make sure people will feel offended by the text.
@@ -88,7 +90,7 @@ module.exports = { buildAgent1Prompt, buildAgent2Prompt };
 /* ---------------------------
    Judge prompt builder + runner
    --------------------------- */
-function buildJudgeSummaryPrompt(rule, examples) {
+function buildJudgeSummaryPrompt(rule, examples, serverContext = '') {
   const judgeProfiles = judges
     .map((j) => {
       const exp = typeof j.experienceYears === 'number' && j.experienceYears > 0 ? `${j.experienceYears} years` : 'relevant experience';
@@ -100,13 +102,15 @@ function buildJudgeSummaryPrompt(rule, examples) {
     .map((ex, i) => `Testcase ${i + 1}: ${ex?.text ?? ''}`)
     .join('\n');
 
+  const trimmedContext = (serverContext || '').trim();
+
   return [
     'You are coordinating five judges evaluating testcases for a text-detection rule.',
     '',
     "GOAL: For each judge and each testcase produce exactly one percentage (0-100) that represents the JUDGE'S final opinion on how likely the rule SHOULD trigger. Keep the exact plain-text outcome format used previously.",
     '',
     'MANDATES (must follow):',
-    "- The RULE is the only policy source. Judges must not replace rule logic with moral or external context.",
+    "- The RULE is the primary policy source. Server context can shape how strictly you apply the rule (e.g., a “bad words allowed” server may lead to more lenient scores), but you must still ground all judgments in the written rule.",
     "- Each rationale MUST begin with an ORACLE tag that states the literal parsing result used for automated checking. Format: `ORACLE: applies` or `ORACLE: does not apply` or `ORACLE: ambiguous`.",
     "- After the ORACLE tag, include a 1-sentence human rationale that explains nuance or why your opinion differs from the oracle.",
     "- The single percent you output is the judge's final opinion (0-100). For clear-cut literal matches prefer >=70, for clear-cut non-matches prefer <=30.",
@@ -128,17 +132,21 @@ function buildJudgeSummaryPrompt(rule, examples) {
     '',
     `Rule to consider:\n${rule}`,
     '',
+    trimmedContext
+      ? `Server / community context (use this to calibrate strictness, but do not override the rule):\n${trimmedContext}\n`
+      : 'Server / community context: (none provided)\n',
+    '',
     'Testcases:',
     testcaseList,
   ].join('\n');
 }
 
-async function runJudgeSummary(rule, examples) {
+async function runJudgeSummary(rule, examples, serverContext = '') {
   if (!openaiClient) {
     throw new Error('OPENAI_API_KEY not configured');
   }
 
-  const prompt = buildJudgeSummaryPrompt(rule, examples);
+  const prompt = buildJudgeSummaryPrompt(rule, examples, serverContext);
 
   const completion = await openaiClient.chat.completions.create({
     model: 'gpt-4o-mini',
@@ -210,7 +218,7 @@ app.post('/generate', async (req, res) => {
 });
 
 app.post('/evaluate', async (req, res) => {
-  const { rule, examples } = req.body || {};
+  const { rule, examples, serverContext } = req.body || {};
   if (!rule || typeof rule !== 'string' || !rule.trim()) {
     return res.status(400).json({ error: 'The "rule" field is required.' });
   }
@@ -222,10 +230,81 @@ app.post('/evaluate', async (req, res) => {
   }
 
   try {
-    const judgeSummary = await runJudgeSummary(rule.trim(), examples);
+    const judgeSummary = await runJudgeSummary(rule.trim(), examples, serverContext);
     return res.json({ judges, judgeSummary });
   } catch (err) {
     return res.status(500).json({ error: 'Failed to evaluate testcases', details: err.message });
+  }
+});
+
+/* ---------------------------
+   Export current testcases to SQLite DB
+   --------------------------- */
+app.post('/export-db', (req, res) => {
+  try {
+    const { rule, testcases } = req.body || {};
+
+    if (!Array.isArray(testcases) || testcases.length === 0) {
+      return res.status(400).json({ error: 'No testcases were provided to export.' });
+    }
+
+    const dbPath = path.join(__dirname, 'db.db');
+    const db = new Database(dbPath);
+
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS testcases (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        idx INTEGER NOT NULL,
+        text TEXT NOT NULL,
+        trigger INTEGER,
+        confidence REAL,
+        overall_score INTEGER,
+        rule TEXT,
+        raw_json TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      );
+      DELETE FROM testcases;
+    `);
+
+    const insert = db.prepare(`
+      INSERT INTO testcases (
+        idx, text, trigger, confidence, overall_score, rule, raw_json
+      ) VALUES (
+        @idx, @text, @trigger, @confidence, @overall_score, @rule, @raw_json
+      );
+    `);
+
+    const rows = testcases.map((tc, index) => ({
+      idx: typeof tc.index === 'number' ? tc.index : index + 1,
+      text: tc.text || '',
+      trigger: typeof tc.trigger === 'boolean' ? (tc.trigger ? 1 : 0) : null,
+      confidence: typeof tc.confidence === 'number' ? tc.confidence : null,
+      overall_score:
+        tc.evaluation && typeof tc.evaluation.overallScore === 'number'
+          ? tc.evaluation.overallScore
+          : null,
+      rule: typeof rule === 'string' && rule.trim() ? rule.trim() : null,
+      raw_json: JSON.stringify(tc),
+    }));
+
+    const insertMany = db.transaction((batch) => {
+      batch.forEach((row) => insert.run(row));
+    });
+
+    insertMany(rows);
+
+    const { count } = db.prepare('SELECT COUNT(*) AS count FROM testcases;').get();
+    db.close();
+
+    return res.json({
+      ok: true,
+      message: 'Database exported successfully.',
+      dbPath,
+      count,
+    });
+  } catch (err) {
+    console.error('Error exporting DB:', err);
+    return res.status(500).json({ error: 'Failed to export DB', details: err.message });
   }
 });
 
