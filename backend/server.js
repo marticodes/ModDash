@@ -18,7 +18,7 @@ app.use(express.json({ limit: '1mb' }));
    Prompt builder (AGENT-1)
    --------------------------- */
 // prompts.js
-function buildAgent1Prompt(rule, example = '', count = 15) {
+function buildAgent1Prompt(rule, example = '') {
   const sanitizedRule = (rule || '').trim();
   const sanitizedExample = (example || '(no example provided)').trim();
 
@@ -46,8 +46,8 @@ Only if the RULE I gave you mentions hate, slurs, protected classes, etc.:
 Now produce the single instruction block for AGENT-2 using the guidance above.`;
 }
 
-function buildAgent2Prompt(agent1Instructions, count = 50) {
-  const safeCount = Number.isFinite(count) && count > 0 ? Math.floor(count) : 50;
+function buildAgent2Prompt(agent1Instructions, count = 100) {
+  const safeCount = Number.isFinite(count) && count > 0 ? Math.floor(count) : 100;
   const sanitizedAgent1 = (agent1Instructions || '').trim();
 
   if (!sanitizedAgent1) {
@@ -180,7 +180,7 @@ app.post('/generate', async (req, res) => {
     }
 
     // 1) Build AGENT-1 prompt and call AGENT-1
-    const agent1Input = buildAgent1Prompt(rule, example || '', count || 15);
+    const agent1Input = buildAgent1Prompt(rule, example || '', count || 100);
     const agent1Resp = await openaiClient.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
@@ -193,7 +193,7 @@ app.post('/generate', async (req, res) => {
     if (!agent1Text) throw new Error('Empty response from Agent1');
 
     // 2) Compose AGENT-2 prompt (fixed schema + AGENT-1 instructions)
-    const agent2Input = buildAgent2Prompt(agent1Text, count || 15);
+    const agent2Input = buildAgent2Prompt(agent1Text, count || 100);
     const agent2Resp = await openaiClient.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [

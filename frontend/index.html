@@ -814,9 +814,9 @@
           const response = await fetch(`${API_BASE}/generate`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ rule, example: example || null, count: 15 }),
+            body: JSON.stringify({ rule, example: example || null, count: 100 }),
           });
-
+s
           if (!response.ok) {
             let errorMessage = `Request failed with status ${response.status}`;
             try {
