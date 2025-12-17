@@ -510,7 +510,7 @@
       const generateMoreLikeButton = document.querySelector("#generate-more-like");
       const selectionCountLabel = document.querySelector("#selection-count");
 
-      const API_BASE = window.__MODDASH_API_BASE__ || "http://127.0.0.1:3001";
+      const API_BASE = import.meta.env.VITE_API_URL || window.__MODDASH_API_BASE__ || "http://127.0.0.1:3001";
 
       /** In-memory state for current testcases */
       let currentTestcases = [];
