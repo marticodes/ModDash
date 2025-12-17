@@ -11,7 +11,13 @@ const PORT = Number(process.env.PORT || 3001);
 const openaiApiKey = process.env.OPENAI_API_KEY;
 const openaiClient = openaiApiKey ? new OpenAI({ apiKey: openaiApiKey }) : null;
 
-app.use(cors({ origin: true }));
+// CORS configuration - allow all origins and methods for Render deployment
+app.use(cors({
+  origin: true,
+  credentials: true,
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(express.json({ limit: '1mb' }));
 
 /* ---------------------------
@@ -266,6 +272,11 @@ async function runJudgeSummary(rule, examples, serverContext = '') {
 /* ---------------------------
    Routes
    --------------------------- */
+// Root route for health checks
+app.get('/', (_req, res) => {
+  res.json({ status: 'ok', service: 'ModDash Backend' });
+});
+
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok' });
 });

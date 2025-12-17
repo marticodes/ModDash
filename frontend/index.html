@@ -511,6 +511,10 @@
       const selectionCountLabel = document.querySelector("#selection-count");
 
       const API_BASE = import.meta.env.VITE_API_URL || window.__MODDASH_API_BASE__ || "http://127.0.0.1:3001";
+      
+      // Log API base for debugging
+      console.log('API_BASE configured as:', API_BASE);
+      console.log('VITE_API_URL from env:', import.meta.env.VITE_API_URL);
 
       /** In-memory state for current testcases */
       let currentTestcases = [];
@@ -811,6 +815,18 @@
         updateSelectionCount();
 
         try {
+          // First, test if backend is reachable
+          try {
+            const healthCheck = await fetch(`${API_BASE}/health`);
+            console.log('Health check status:', healthCheck.status);
+            if (!healthCheck.ok) {
+              throw new Error(`Backend health check failed: ${healthCheck.status}`);
+            }
+          } catch (healthError) {
+            console.error('Health check failed:', healthError);
+            throw new Error(`Cannot reach backend at ${API_BASE}. Please verify the backend is deployed and running.`);
+          }
+
           const response = await fetch(`${API_BASE}/generate`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
