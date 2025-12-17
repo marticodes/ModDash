@@ -827,19 +827,28 @@
             throw new Error(`Cannot reach backend at ${API_BASE}. Please verify the backend is deployed and running.`);
           }
 
+          // Create an AbortController for timeout handling
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 120000); // 120 second timeout
+          
           const response = await fetch(`${API_BASE}/generate`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ rule, example: example || null, count: 15 }),
+            signal: controller.signal,
           });
+          
+          clearTimeout(timeoutId);
 
           if (!response.ok) {
             let errorMessage = `Request failed with status ${response.status}`;
+            let errorDetails = null;
             try {
               const errorData = await response.json();
-              errorMessage = errorData.error || errorData.details || errorMessage;
-              if (errorData.details) {
-                errorMessage += `: ${errorData.details}`;
+              errorMessage = errorData.error || errorMessage;
+              errorDetails = errorData.details || errorData.suggestion || null;
+              if (errorData.details && errorData.details !== errorMessage) {
+                errorMessage = errorData.details;
               }
             } catch (e) {
               const text = await response.text();
@@ -847,6 +856,15 @@
                 errorMessage = text;
               }
             }
+            
+            // Special handling for timeout errors (504)
+            if (response.status === 504) {
+              errorMessage = "Request timeout - The backend request took too long. This is likely due to Render's 30-second timeout limit on the free tier.";
+              if (errorDetails) {
+                errorMessage += " " + errorDetails;
+              }
+            }
+            
             throw new Error(errorMessage);
           }
 
@@ -866,7 +884,15 @@
           renderTestcases();
         } catch (error) {
           console.error('Error generating content:', error);
-          const errorMsg = error.message || "Something went wrong while generating the dataset.";
+          let errorMsg = error.message || "Something went wrong while generating the dataset.";
+          
+          // Handle specific error types
+          if (error.name === 'AbortError' || error.message.includes('timeout') || error.message.includes('Load failed')) {
+            errorMsg = "Request timed out. This can happen on Render's free tier (30s limit). The Agent 2 call may be taking too long. Try reducing the testcase count or upgrading your Render plan.";
+          } else if (error.message.includes('network') || error.message.includes('connection')) {
+            errorMsg = "Network connection lost. This may be due to Render's timeout limits. Please try again or check your backend logs.";
+          }
+          
           setPanelContent(resultPanel, [
             createParagraph("Error: " + errorMsg),
             createParagraph("Check the browser console and server logs for more details.")

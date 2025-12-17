@@ -9,7 +9,15 @@ const judges = require('./judges');
 const app = express();
 const PORT = Number(process.env.PORT || 3001);
 const openaiApiKey = process.env.OPENAI_API_KEY;
-const openaiClient = openaiApiKey ? new OpenAI({ apiKey: openaiApiKey }) : null;
+// Configure OpenAI client with longer timeout for Agent 2 calls
+const openaiClient = openaiApiKey ? new OpenAI({ 
+  apiKey: openaiApiKey,
+  timeout: 120000, // 120 seconds timeout for OpenAI API calls
+  maxRetries: 2
+}) : null;
+
+// Increase server timeout for long-running requests (Render allows up to 30s on free tier, but we'll set higher for paid)
+app.timeout = 120000; // 120 seconds
 
 // CORS configuration - allow all origins and methods for Render deployment
 app.use(cors({
@@ -286,6 +294,10 @@ app.post('/generate', async (req, res) => {
   console.log('\n=== /generate endpoint called ===');
   console.log('Timestamp:', new Date().toISOString());
   
+  // Note: Render free tier has a 30-second timeout limit that cannot be overridden
+  // We'll try to complete within that time, but Agent 2 may timeout on complex requests
+  // Consider: splitting into two endpoints, using background jobs, or upgrading Render plan
+  
   try {
     const { rule, example, count } = req.body || {};
     console.log('Received inputs:');
@@ -341,13 +353,33 @@ app.post('/generate', async (req, res) => {
     
     console.log('Calling OpenAI API for AGENT-2...');
     const agent2StartTime = Date.now();
-    const agent2Resp = await openaiClient.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [
-        { role: 'system', content: 'You are AGENT-2. Output strict JSON only.' },
-        { role: 'user', content: agent2Input },
-      ],
-    });
+    
+    // Use streaming to get partial responses and avoid timeout
+    // But for now, let's try with a longer timeout and better error handling
+    let agent2Resp;
+    try {
+      agent2Resp = await Promise.race([
+        openaiClient.chat.completions.create({
+          model: 'gpt-4o-mini',
+          messages: [
+            { role: 'system', content: 'You are AGENT-2. Output strict JSON only.' },
+            { role: 'user', content: agent2Input },
+          ],
+          timeout: 90000, // 90 seconds for this specific call
+        }),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Agent 2 request timeout after 90 seconds')), 90000)
+        )
+      ]);
+    } catch (timeoutError) {
+      console.error('AGENT-2 timeout error:', timeoutError);
+      // Return a more helpful error message
+      return res.status(504).json({ 
+        error: 'Request timeout',
+        details: 'Agent 2 request took too long. This is likely due to Render\'s 30-second timeout limit on the free tier. Try reducing the testcase count or upgrade your Render plan.',
+        suggestion: 'Consider reducing the count parameter or upgrading to Render\'s paid tier for longer timeouts.'
+      });
+    }
     const agent2Duration = Date.now() - agent2StartTime;
     console.log(`AGENT-2 API call completed in ${agent2Duration}ms`);
     console.log('AGENT-2 response structure:', {
@@ -407,6 +439,22 @@ app.post('/generate', async (req, res) => {
     console.error('Error message:', err.message);
     console.error('Error stack:', err.stack);
     console.error('=== End of error ===\n');
+    
+    // Check if this is a timeout-related error
+    const isTimeout = err.message && (
+      err.message.includes('timeout') || 
+      err.message.includes('ETIMEDOUT') ||
+      err.message.includes('ECONNRESET')
+    );
+    
+    if (isTimeout) {
+      return res.status(504).json({ 
+        error: 'Request timeout',
+        details: 'The request took too long to complete. This is likely due to Render\'s 30-second timeout limit on the free tier. Try reducing the testcase count or upgrade your Render plan.',
+        suggestion: 'Consider reducing the count parameter (currently 15) or upgrading to Render\'s paid tier for longer timeouts.'
+      });
+    }
+    
     return res.status(500).json({ error: err.message });
   }
 });
