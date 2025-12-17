@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ModCase</title>
+    <style>
+      :root {
+        color-scheme: light;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: #f4f4f7;
+        color: #222;
+      }
+
+      .page {
+        min-height: 100vh;
+        padding: 32px;
+        display: flex;
+        flex-direction: column;
+        gap: 24px;
+      }
+
+      header h1 {
+        margin: 0;
+        font-size: 2.25rem;
+        letter-spacing: 0.08em;
+        font-weight: 600;
+        flex: 1;
+      }
+
+      header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+      }
+
+      .top-actions {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .secondary-button {
+        background: #111827;
+        background-image: none;
+      }
+
+      .layout {
+        display: grid;
+        grid-template-columns: 360px 1fr;
+        gap: 24px;
+        flex-grow: 1;
+      }
+
+      .card {
+        background: #fff;
+        border-radius: 18px;
+        box-shadow: 0 20px 45px rgba(15, 23, 42, 0.1);
+        padding: 28px;
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+      }
+
+      .field label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: 600;
+        font-size: 0.95rem;
+      }
+
+      .field textarea {
+        width: 100%;
+        min-height: 120px;
+        border: 1px solid #d8dae5;
+        border-radius: 16px;
+        padding: 16px;
+        font: inherit;
+        resize: vertical;
+        outline: none;
+        transition: border-color 0.2s ease, box-shadow 0.2s ease;
+      }
+
+      .field textarea:focus {
+        border-color: #6366f1;
+        box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.15);
+      }
+
+      .hint {
+        font-size: 0.85rem;
+        color: #6b7280;
+        margin-top: 6px;
+      }
+
+      button {
+        border: none;
+        border-radius: 16px;
+        padding: 14px 20px;
+        background: linear-gradient(135deg, #6366f1, #8b5cf6);
+        color: white;
+        font-size: 1rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
+      }
+
+      button:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 10px 25px rgba(99, 102, 241, 0.25);
+      }
+
+      button:active {
+        transform: translateY(0);
+        box-shadow: none;
+      }
+
+      .results {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+
+      .panel {
+        background: #fff;
+        border-radius: 18px;
+        box-shadow: inset 0 0 0 2px #e5e7eb;
+        padding: 20px;
+        min-height: 220px;
+        max-height: calc(100vh - 160px);
+        overflow-y: auto;
+        font-size: 0.95rem;
+        color: #4b5563;
+      }
+
+      .panel[data-placeholder]:empty::before {
+        content: attr(data-placeholder);
+        color: #9ca3af;
+      }
+
+      .dataset-table {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        padding: 16px;
+        border-radius: 12px;
+        background: rgba(99, 102, 241, 0.05);
+      }
+
+      .dataset-table h3 {
+        margin: 0;
+        font-size: 1.05rem;
+        color: #3730a3;
+      }
+
+      .judge-roster {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 12px;
+      }
+
+      .judge-card {
+        border: 1px solid #e5e7eb;
+        border-radius: 12px;
+        padding: 12px;
+        background: #f9fafb;
+      }
+
+      .judge-card strong {
+        display: block;
+        font-size: 1rem;
+        margin-bottom: 4px;
+      }
+
+      .judge-meta {
+        margin: 0 0 8px 0;
+        color: #6b7280;
+        font-size: 0.9rem;
+      }
+
+      .judge-summary-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 16px;
+      }
+
+      .judge-summary-card {
+        border: 1px solid #e5e7eb;
+        border-radius: 14px;
+        padding: 16px;
+        background: #fdfdfd;
+        box-shadow: 0 6px 20px rgba(15, 23, 42, 0.08);
+      }
+
+      .judge-summary-card h4 {
+        margin: 0 0 12px 0;
+        font-size: 1.05rem;
+        color: #1f2937;
+      }
+
+      .judge-summary-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      .judge-summary-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-weight: 600;
+        color: #111827;
+      }
+
+      .testcase-label {
+        font-size: 0.9rem;
+        letter-spacing: 0.01em;
+        text-transform: uppercase;
+        color: #6b7280;
+      }
+
+      .testcase-score {
+        font-size: 1rem;
+        padding: 2px 8px;
+        border-radius: 999px;
+        background: #eef2ff;
+        color: #3730a3;
+        font-weight: 700;
+      }
+
+      .testcase-rationale {
+        margin: 6px 0 0 0;
+        color: #374151;
+        font-size: 0.92rem;
+      }
+
+      .dataset-table .columns {
+        margin: 0;
+        display: grid;
+        gap: 4px;
+      }
+
+      .dataset-table .columns dt {
+        font-weight: 600;
+      }
+
+      .dataset-table .columns dd {
+        margin: 0 0 8px 0;
+        color: #4b5563;
+      }
+
+      .sample-rows {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.9rem;
+      }
+
+      .sample-rows th,
+      .sample-rows td {
+        border: 1px solid #e5e7eb;
+        padding: 6px 8px;
+        text-align: left;
+      }
+
+      .sample-rows th {
+        background: #eef2ff;
+      }
+
+      .fallback-note {
+        margin: 12px 0 0;
+        padding: 12px;
+        border-radius: 12px;
+        background: rgba(217, 119, 6, 0.12);
+        color: #b45309;
+        font-weight: 600;
+      }
+
+      button:disabled {
+        opacity: 0.7;
+        cursor: progress;
+      }
+
+      .result-toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        font-size: 0.9rem;
+        color: #4b5563;
+      }
+
+      .result-toolbar-left {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .result-toolbar-title {
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+
+      .result-toolbar-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .result-toolbar button {
+        padding: 8px 14px;
+        font-size: 0.85rem;
+        border-radius: 999px;
+      }
+
+      .chip-toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        border: 1px solid #e5e7eb;
+        background: #f9fafb;
+        font-size: 0.85rem;
+        cursor: pointer;
+      }
+
+      .chip-toggle input {
+        margin: 0;
+      }
+
+      .testcase-list {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+
+      .testcase-card {
+        border-radius: 14px;
+        border: 1px solid #e5e7eb;
+        padding: 14px 16px;
+        background: #f9fafb;
+        display: flex;
+        gap: 12px;
+      }
+
+      .testcase-checkbox {
+        margin-top: 4px;
+      }
+
+      .testcase-body {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .testcase-meta {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        font-size: 0.85rem;
+        color: #6b7280;
+      }
+
+      .testcase-title {
+        font-weight: 600;
+      }
+
+      .score-pill {
+        padding: 2px 10px;
+        border-radius: 999px;
+        background: #ecfdf3;
+        color: #166534;
+        font-weight: 600;
+        font-size: 0.8rem;
+      }
+
+      .testcase-judges {
+        margin-top: 4px;
+        padding-top: 6px;
+        border-top: 1px dashed #e5e7eb;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      .testcase-judge-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 8px;
+        font-size: 0.85rem;
+        color: #374151;
+      }
+
+      .testcase-judge-name {
+        font-weight: 600;
+      }
+
+      .testcase-judge-score {
+        font-weight: 600;
+        color: #3730a3;
+      }
+
+      .testcase-judge-rationale {
+        font-size: 0.8rem;
+        color: #6b7280;
+      }
+
+      .empty-state {
+        font-size: 0.95rem;
+        color: #9ca3af;
+      }
+
+      @media (max-width: 960px) {
+        .layout {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+    <script type="module" crossorigin src="/assets/index-BcRcRBqt.js"></script>
+  </head>
+  <body>
+    <div class="page">
+      <header>
+        <h1>ModCase</h1>
+        <div class="top-actions">
+          <button id="generate-dataset" type="button" class="secondary-button">
+            Generate dataset
+          </button>
+        </div>
+      </header>
+      <main class="layout">
+        <section class="card" aria-labelledby="rule-builder">
+          <div class="field">
+            <label id="rule-builder" for="rule">Write a rule you want to test...</label>
+            <textarea id="rule" name="rule" placeholder="e.g., Block messages containing more than 3 links"></textarea>
+          </div>
+
+          <div class="field">
+            <label for="example">[Optional] Give an example case</label>
+            <textarea
+              id="example"
+              name="example"
+              placeholder="Paste a message or scenario to preview how the rule behaves"
+            ></textarea>
+            <p class="hint">Use this space to test the rule against a specific message.</p>
+          </div>
+
+          <div class="field">
+            <label for="server-context">[Optional] Describe the server context</label>
+            <textarea
+              id="server-context"
+              name="server-context"
+              placeholder="e.g., “This server is only for Black community members” or “All users are cat fans and offensive jokes are common.”"
+            ></textarea>
+            <p class="hint">
+              This description is only used by the judges when evaluating testcases, so they can adjust their interpretation to the specific community (e.g., more lenient in a “bad words allowed” server).
+            </p>
+          </div>
+
+          <button id="generate" type="button">Generate</button>
+        </section>
+
+        <section class="results">
+          <div class="result-toolbar">
+            <div class="result-toolbar-left">
+              <span class="result-toolbar-title">Result</span>
+              <label class="chip-toggle">
+                <input type="checkbox" id="select-all" />
+                <span>Select all</span>
+              </label>
+              <span id="selection-count">0 selected</span>
+            </div>
+            <div class="result-toolbar-actions">
+              <button type="button" id="delete-selected">Delete</button>
+              <button type="button" id="evaluate-selected">Evaluate</button>
+              <button type="button" id="generate-more-like">Generate more like these</button>
+            </div>
+          </div>
+          <div
+            id="result-panel"
+            class="panel"
+            data-placeholder="Generated testcases will appear here..."
+          ></div>
+        </section>
+      </main>
+    </div>
+  </body>
+</html>
+

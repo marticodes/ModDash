@@ -458,6 +458,18 @@
             <p class="hint">Use this space to test the rule against a specific message.</p>
           </div>
 
+          <div class="field">
+            <label for="server-context">[Optional] Describe the server context</label>
+            <textarea
+              id="server-context"
+              name="server-context"
+              placeholder="e.g., “This server is only for Black community members” or “All users are cat fans and offensive jokes are common.”"
+            ></textarea>
+            <p class="hint">
+              This description is only used by the judges when evaluating testcases, so they can adjust their interpretation to the specific community (e.g., more lenient in a “bad words allowed” server).
+            </p>
+          </div>
+
           <button id="generate" type="button">Generate</button>
         </section>
 
@@ -488,6 +500,7 @@
     <script type="module">
       const ruleField = document.querySelector("#rule");
       const exampleField = document.querySelector("#example");
+      const serverContextField = document.querySelector("#server-context");
       const generateButton = document.querySelector("#generate");
       const resultPanel = document.querySelector("#result-panel");
       const generateDatasetButton = document.querySelector("#generate-dataset");
@@ -897,10 +910,11 @@
         evaluateSelectedButton.textContent = "Evaluating...";
 
         try {
+          const serverContext = (serverContextField?.value || "").trim();
           const response = await fetch(`${API_BASE}/evaluate`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ rule: lastRule, examples }),
+            body: JSON.stringify({ rule: lastRule, examples, serverContext }),
           });
 
           if (!response.ok) {
@@ -1045,8 +1059,68 @@
         handleGenerateMoreLike();
       });
 
+      async function handleGenerateDataset() {
+        if (!currentTestcases.length) {
+          alert("There are no testcases to export. Generate some first.");
+          return;
+        }
+
+        const rule = (lastRule || ruleField.value || "").trim();
+        if (!rule) {
+          const proceed = confirm(
+            "No rule is currently set. Export testcases without a rule value?"
+          );
+          if (!proceed) return;
+        }
+
+        const payloadTestcases = currentTestcases.map((tc, index) => ({
+          index: index + 1,
+          text: tc.text || "",
+          trigger: typeof tc.trigger === "boolean" ? tc.trigger : null,
+          confidence: typeof tc.confidence === "number" ? tc.confidence : null,
+          evaluation: tc.evaluation || null,
+          raw: tc.raw || null,
+        }));
+
+        generateDatasetButton.disabled = true;
+        generateDatasetButton.textContent = "Creating db.db...";
+
+        try {
+          const response = await fetch(`${API_BASE}/export-db`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              rule: rule || null,
+              testcases: payloadTestcases,
+            }),
+          });
+
+          if (!response.ok) {
+            let msg = `Export failed with status ${response.status}`;
+            try {
+              const data = await response.json();
+              msg = data.error || data.details || msg;
+            } catch {
+              const text = await response.text();
+              if (text) msg = text;
+            }
+            throw new Error(msg);
+          }
+
+          const result = await response.json();
+          const count = typeof result.count === "number" ? result.count : payloadTestcases.length;
+          alert(`db.db created with ${count} testcases.`);
+        } catch (error) {
+          console.error("Error exporting db:", error);
+          alert(error.message || "Something went wrong while creating db.db.");
+        } finally {
+          generateDatasetButton.disabled = false;
+          generateDatasetButton.textContent = "Generate dataset";
+        }
+      }
+
       generateDatasetButton.addEventListener("click", () => {
-        alert("Dataset generation workflow is not implemented yet. This button is a placeholder for now.");
+        handleGenerateDataset();
       });
 
       // Initial empty state
