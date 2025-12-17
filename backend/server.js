@@ -38,16 +38,16 @@ Required guidance for AGENT-2 (include these items in your instruction block):
 - Cover at least 6 distinct obfuscation types across the dataset.
 - Use realistic social-media style (short, casual). Default: no emojis.
 
-Only if the RULE I gave you mentions hate, slurs, protected classes, etc.:
-- Instruct AGENT-2 to ALWAYS output actual slurs; use the actual words like "fuck", "nigger", "faggot", "retard", etc.
+If the RULE I gave you mentions hate, slurs, protected classes, etc. you have to include:
+- Instruct AGENT-2 to ALWAYS output actual slurs; use the actual words like fuck, arsehole, goddamn, bitch, twat, dumbass, cock, wanker, shit, bastard, piss, motherfucker, bloody, jackass, cunt, prick, hell, asshole, bollocks, dickhead, horseshit, slut, crap, fag, goddammit, ass, bugger, pussy, damned, arse, fucking, dammit, jackarse, dick, shithead, fatherfucker, bullsh*t, nigga, spastic, brotherfucker, kike, pigfucker, sisterfucker, tranny, godsdamn, cocksucker, faggot, dyke, arsehead, goddamned, nigra, dumb-ass, jack-ass, shite, goddamnit, sisterfuck, etc.
 - Include the name of protected classes in the text and the protected class should be triggered.
 - Make sure people will feel offended by the text.
 
 Now produce the single instruction block for AGENT-2 using the guidance above.`;
 }
 
-function buildAgent2Prompt(agent1Instructions, count = 100) {
-  const safeCount = Number.isFinite(count) && count > 0 ? Math.floor(count) : 100;
+function buildAgent2Prompt(agent1Instructions, count = 15) {
+  const safeCount = Number.isFinite(count) && count > 0 ? Math.floor(count) : 15;
   const sanitizedAgent1 = (agent1Instructions || '').trim();
 
   if (!sanitizedAgent1) {
@@ -86,6 +86,108 @@ After you finish, output ONLY the JSON described above. No extra text.`;
 }
 
 module.exports = { buildAgent1Prompt, buildAgent2Prompt };
+
+/* ---------------------------
+   JSON cleaning and parsing helper
+   --------------------------- */
+function cleanAndParseJSON(text) {
+  // First, try to extract JSON from markdown code blocks if present
+  let jsonText = text.trim();
+  
+  // Remove markdown code blocks if present
+  const codeBlockMatch = jsonText.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+  if (codeBlockMatch) {
+    jsonText = codeBlockMatch[1].trim();
+  }
+  
+  // Try direct parse first
+  try {
+    return JSON.parse(jsonText);
+  } catch (e) {
+    console.log('Direct JSON parse failed, attempting to fix control characters...');
+  }
+  
+  // Fix control characters in JSON strings using a state machine approach
+  let fixedJson = '';
+  let inString = false;
+  let escapeNext = false;
+  
+  for (let i = 0; i < jsonText.length; i++) {
+    const char = jsonText[i];
+    const code = char.charCodeAt(0);
+    
+    if (escapeNext) {
+      // We're escaping the next character, so just add it
+      fixedJson += char;
+      escapeNext = false;
+      continue;
+    }
+    
+    if (char === '\\') {
+      // Escape character - mark next char as escaped
+      fixedJson += char;
+      escapeNext = true;
+      continue;
+    }
+    
+    if (char === '"') {
+      // Toggle string state
+      inString = !inString;
+      fixedJson += char;
+      continue;
+    }
+    
+    if (inString) {
+      // We're inside a string - escape control characters
+      if (code < 0x20 || code === 0x7F) {
+        // Control character - escape it
+        if (char === '\n') {
+          fixedJson += '\\n';
+        } else if (char === '\r') {
+          fixedJson += '\\r';
+        } else if (char === '\t') {
+          fixedJson += '\\t';
+        } else if (char === '\f') {
+          fixedJson += '\\f';
+        } else if (char === '\b') {
+          fixedJson += '\\b';
+        } else if (char === '\v') {
+          fixedJson += '\\v';
+        } else {
+          // Other control characters - use unicode escape
+          fixedJson += '\\u' + ('0000' + code.toString(16)).slice(-4);
+        }
+      } else {
+        fixedJson += char;
+      }
+    } else {
+      // Outside string - just copy
+      fixedJson += char;
+    }
+  }
+  
+  // Try parsing the fixed JSON
+  let parseError;
+  try {
+    return JSON.parse(fixedJson);
+  } catch (e) {
+    parseError = e;
+    console.log('Fixed JSON parse also failed:', e.message);
+    
+    // Log context around error
+    const errorPosition = e.message.match(/position (\d+)/);
+    if (errorPosition) {
+      const pos = parseInt(errorPosition[1]);
+      const start = Math.max(0, pos - 200);
+      const end = Math.min(fixedJson.length, pos + 200);
+      console.log(`Error context around position ${pos}:`, fixedJson.substring(start, end));
+    }
+  }
+  
+  // If all else fails, throw with context
+  const errorMessage = parseError?.message || 'Unknown parsing error';
+  throw new Error(`Failed to parse JSON after cleaning attempts: ${errorMessage}`);
+}
 
 /* ---------------------------
    Judge prompt builder + runner
@@ -170,17 +272,33 @@ app.get('/health', (_req, res) => {
 
 
 app.post('/generate', async (req, res) => {
+  console.log('\n=== /generate endpoint called ===');
+  console.log('Timestamp:', new Date().toISOString());
+  
   try {
     const { rule, example, count } = req.body || {};
+    console.log('Received inputs:');
+    console.log('  - rule:', rule ? `${rule.substring(0, 100)}...` : '(empty)');
+    console.log('  - example:', example ? `${example.substring(0, 100)}...` : '(none)');
+    console.log('  - count:', count || 15);
+    
     if (!rule || typeof rule !== 'string' || !rule.trim()) {
+      console.log('ERROR: Rule is required but missing');
       return res.status(400).json({ error: 'The "rule" field is required.' });
     }
     if (!openaiClient) {
+      console.log('ERROR: OpenAI client not initialized (OPENAI_API_KEY not set)');
       return res.status(500).json({ error: 'OPENAI_API_KEY not set.' });
     }
 
     // 1) Build AGENT-1 prompt and call AGENT-1
-    const agent1Input = buildAgent1Prompt(rule, example || '', count || 100);
+    console.log('\n--- Step 1: Building AGENT-1 prompt ---');
+    const agent1Input = buildAgent1Prompt(rule, example || '', count || 15);
+    console.log('AGENT-1 prompt length:', agent1Input.length, 'characters');
+    console.log('AGENT-1 prompt preview:', agent1Input.substring(0, 200) + '...');
+    
+    console.log('Calling OpenAI API for AGENT-1...');
+    const agent1StartTime = Date.now();
     const agent1Resp = await openaiClient.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
@@ -188,12 +306,30 @@ app.post('/generate', async (req, res) => {
         { role: 'user', content: agent1Input },
       ],
     });
+    const agent1Duration = Date.now() - agent1StartTime;
+    console.log(`AGENT-1 API call completed in ${agent1Duration}ms`);
+    console.log('AGENT-1 response structure:', {
+      choices: agent1Resp.choices?.length || 0,
+      model: agent1Resp.model,
+      usage: agent1Resp.usage
+    });
 
     const agent1Text = agent1Resp.choices?.[0]?.message?.content?.trim();
-    if (!agent1Text) throw new Error('Empty response from Agent1');
+    console.log('AGENT-1 response text length:', agent1Text?.length || 0);
+    if (!agent1Text) {
+      console.log('ERROR: Empty response from Agent1');
+      throw new Error('Empty response from Agent1');
+    }
+    console.log('AGENT-1 OUTPUT (first 500 chars):\n', agent1Text.substring(0, 500));
 
     // 2) Compose AGENT-2 prompt (fixed schema + AGENT-1 instructions)
-    const agent2Input = buildAgent2Prompt(agent1Text, count || 100);
+    console.log('\n--- Step 2: Building AGENT-2 prompt ---');
+    const agent2Input = buildAgent2Prompt(agent1Text, count || 15);
+    console.log('AGENT-2 prompt length:', agent2Input.length, 'characters');
+    console.log('AGENT-2 prompt preview:', agent2Input.substring(0, 200) + '...');
+    
+    console.log('Calling OpenAI API for AGENT-2...');
+    const agent2StartTime = Date.now();
     const agent2Resp = await openaiClient.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
@@ -201,18 +337,65 @@ app.post('/generate', async (req, res) => {
         { role: 'user', content: agent2Input },
       ],
     });
+    const agent2Duration = Date.now() - agent2StartTime;
+    console.log(`AGENT-2 API call completed in ${agent2Duration}ms`);
+    console.log('AGENT-2 response structure:', {
+      choices: agent2Resp.choices?.length || 0,
+      model: agent2Resp.model,
+      usage: agent2Resp.usage
+    });
 
     const agent2Text = agent2Resp.choices?.[0]?.message?.content?.trim();
-    if (!agent2Text) throw new Error('Empty response from Agent2');
-    console.log("AGENT-1 OUTPUT:\n", agent1Text);
-
+    console.log('AGENT-2 response text length:', agent2Text?.length || 0);
+    if (!agent2Text) {
+      console.log('ERROR: Empty response from Agent2');
+      throw new Error('Empty response from Agent2');
+    }
+    console.log('AGENT-2 OUTPUT (first 1000 chars):\n', agent2Text.substring(0, 1000));
 
     // Parse and return
-    const parsed = JSON.parse(agent2Text);
-    if (!parsed || !Array.isArray(parsed.examples)) throw new Error('Agent2 output missing examples array');
+    console.log('\n--- Step 3: Parsing AGENT-2 response ---');
+    let parsed;
+    try {
+      parsed = cleanAndParseJSON(agent2Text);
+      console.log('JSON parsing successful');
+      console.log('Parsed object keys:', Object.keys(parsed));
+      console.log('Examples array length:', parsed.examples?.length || 0);
+    } catch (parseError) {
+      console.log('ERROR: Failed to parse JSON from AGENT-2');
+      console.log('Parse error:', parseError.message);
+      console.log('Raw response (first 2000 chars):', agent2Text.substring(0, 2000));
+      
+      // Log the area around the error position if available
+      const errorPosition = parseError.message.match(/position (\d+)/);
+      if (errorPosition) {
+        const pos = parseInt(errorPosition[1]);
+        const start = Math.max(0, pos - 200);
+        const end = Math.min(agent2Text.length, pos + 200);
+        console.log(`Error context around position ${pos}:`, agent2Text.substring(start, end));
+      }
+      
+      throw new Error(`Failed to parse JSON from Agent2: ${parseError.message}`);
+    }
+    
+    if (!parsed || !Array.isArray(parsed.examples)) {
+      console.log('ERROR: Agent2 output missing examples array');
+      console.log('Parsed object:', JSON.stringify(parsed, null, 2).substring(0, 500));
+      throw new Error('Agent2 output missing examples array');
+    }
 
-    return res.json({ prompts: { agent1: agent1Input, agent2: agent2Input }, ...parsed });
+    console.log('\n--- Step 4: Sending response to client ---');
+    console.log('Total examples to return:', parsed.examples.length);
+    const response = { prompts: { agent1: agent1Input, agent2: agent2Input }, ...parsed };
+    console.log('Response keys:', Object.keys(response));
+    console.log('=== /generate endpoint completed successfully ===\n');
+    
+    return res.json(response);
   } catch (err) {
+    console.error('\n=== ERROR in /generate endpoint ===');
+    console.error('Error message:', err.message);
+    console.error('Error stack:', err.stack);
+    console.error('=== End of error ===\n');
     return res.status(500).json({ error: err.message });
   }
 });
