@@ -52,8 +52,8 @@ If the RULE I gave you mentions hate, slurs, protected classes, etc. you have to
 Now produce the single instruction block for AGENT-2 using the guidance above.`;
 }
 
-function buildAgent2Prompt(agent1Instructions, count = 15) {
-  const safeCount = Number.isFinite(count) && count > 0 ? Math.floor(count) : 15;
+function buildAgent2Prompt(agent1Instructions, count = 5) {
+  const safeCount = Number.isFinite(count) && count > 0 ? Math.floor(count) : 5;
   const sanitizedAgent1 = (agent1Instructions || '').trim();
 
   if (!sanitizedAgent1) {
@@ -291,7 +291,7 @@ app.post('/generate', async (req, res) => {
     console.log('Received inputs:');
     console.log('  - rule:', rule ? `${rule.substring(0, 100)}...` : '(empty)');
     console.log('  - example:', example ? `${example.substring(0, 100)}...` : '(none)');
-    console.log('  - count:', count || 15);
+    console.log('  - count:', count || 5);
     
     if (!rule || typeof rule !== 'string' || !rule.trim()) {
       console.log('ERROR: Rule is required but missing');
@@ -304,7 +304,7 @@ app.post('/generate', async (req, res) => {
 
     // 1) Build AGENT-1 prompt and call AGENT-1
     console.log('\n--- Step 1: Building AGENT-1 prompt ---');
-    const agent1Input = buildAgent1Prompt(rule, example || '', count || 15);
+    const agent1Input = buildAgent1Prompt(rule, example || '', count || 5);
     console.log('AGENT-1 prompt length:', agent1Input.length, 'characters');
     console.log('AGENT-1 prompt preview:', agent1Input.substring(0, 200) + '...');
     
@@ -335,7 +335,7 @@ app.post('/generate', async (req, res) => {
 
     // 2) Compose AGENT-2 prompt (fixed schema + AGENT-1 instructions)
     console.log('\n--- Step 2: Building AGENT-2 prompt ---');
-    const agent2Input = buildAgent2Prompt(agent1Text, count || 15);
+    const agent2Input = buildAgent2Prompt(agent1Text, count || 5);
     console.log('AGENT-2 prompt length:', agent2Input.length, 'characters');
     console.log('AGENT-2 prompt preview:', agent2Input.substring(0, 200) + '...');
     
